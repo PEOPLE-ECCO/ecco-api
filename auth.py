@@ -1,0 +1,77 @@
+import ssl
+from dataclasses import dataclass
+
+import aiohttp
+import jwt
+from jwt import PyJWKClient
+from quart import Quart
+
+
+@dataclass
+class AuthConfig:
+    client_id: str
+    oidc_server: str
+
+
+class AuthMiddleware:
+    __jwks_client: PyJWKClient = None
+
+    def __init__(self, app: Quart, config: AuthConfig):
+        self.app = app.asgi_app
+        self.config = config
+
+    async def __call__(self, scope, receive, send):
+        if not self.__jwks_client:
+            await self.init_oidc()
+
+        if "headers" not in scope:
+            print("no headers in scope")
+            return await self.error_response(receive, send)
+
+        token = None
+        for header_key, header_val in scope['headers']:
+            if header_key == b'authorization':
+                token = header_val[7:]
+                break
+
+        if not token:
+            return await self.error_response(receive, send)
+
+        signing_key = self.__jwks_client.get_signing_key_from_jwt(token)
+        try:
+            jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=["RS256"],
+                issuer=self.config.oidc_server,
+                options={
+                    "verify_signature": True,
+                    "verify_exp": True,
+                    "verify_nbf": True,
+                    "verify_iat": True,
+                    "verify_aud": True,
+                    "verify_iss": True,
+                },
+            )
+        except Exception as e:
+            return await self.error_response(receive, send)
+
+    async def error_response(self, receive, send):
+        await send({
+            'type': 'http.response.start',
+            'status': 401,
+            'headers': [(b'content-length', b'0')],
+        })
+        await send({
+            'type': 'http.response.body',
+            'body': b'',
+            'more_body': False,
+        })
+
+    async def init_oidc(self):
+        context = ssl.SSLContext()
+        context.load_verify_locations("../docker/certs/kc-cert.pem")
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl_context=context)) as session:
+            async with session.get(f"{self.config.oidc_server}/.well-known/openid-configuration") as config:
+                oidc_config = await config.json()
+                self.__jwks_client = jwt.PyJWKClient(oidc_config["jwks_uri"], ssl_context=context)
