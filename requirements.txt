@@ -1,5 +1,12 @@
 aiohttp[speedups]
-cryptography
+
+minio
+
+rasterio[s3]
+rio-stac
+fs_s3fs
+
 quart
 quart-cors
+cryptography
 PyJWT

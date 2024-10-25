@@ -70,7 +70,7 @@ class AuthMiddleware:
 
     async def init_oidc(self):
         context = ssl.SSLContext()
-        context.load_verify_locations("../docker/certs/kc-cert.pem")
+        context.load_verify_locations("./kc-cert.pem")
         async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl_context=context)) as session:
             async with session.get(f"{self.config.oidc_server}/.well-known/openid-configuration") as config:
                 oidc_config = await config.json()
