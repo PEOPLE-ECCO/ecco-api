@@ -6,7 +6,11 @@ rasterio[s3]
 rio-stac
 fs_s3fs
 
+sqlalchemy[psycopg]
+psycopg[binary]
+
 quart
 quart-cors
 cryptography
 PyJWT
+hypercorn[uvloop]

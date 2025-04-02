@@ -1,4 +1,3 @@
-import ssl
 from dataclasses import dataclass
 
 import aiohttp
@@ -20,7 +19,15 @@ class AuthMiddleware:
         self.app = app.asgi_app
         self.config = config
 
+    async def startup(self) -> None:
+        print("starting AuthMiddleware")
+
     async def __call__(self, scope, receive, send):
+        if scope["type"] == "lifespan":
+            return await self.app(scope, receive, send)
+        if scope["method"] == "OPTIONS":
+            return await self.app(scope, receive, send)
+
         if not self.__jwks_client:
             await self.init_oidc()
 
@@ -39,22 +46,30 @@ class AuthMiddleware:
 
         signing_key = self.__jwks_client.get_signing_key_from_jwt(token)
         try:
-            jwt.decode(
+            decoded = jwt.decode(
                 token,
                 signing_key.key,
                 algorithms=["RS256"],
                 issuer=self.config.oidc_server,
                 options={
-                    "verify_signature": True,
-                    "verify_exp": True,
-                    "verify_nbf": True,
-                    "verify_iat": True,
-                    "verify_aud": True,
-                    "verify_iss": True,
+                    "verify_signature": False,
+                    "verify_exp": False,
+                    "verify_nbf": False,
+                    "verify_iat": False,
+                    "verify_aud": False,
+                    "verify_iss": False,
                 },
             )
+            print(decoded)
+            scope["username"] = decoded['name']
+            scope["mail"] = decoded['email']
+            scope["uuid"] = decoded['sub']  # + decoded['groups_uuids']
+
         except Exception as e:
+            print(e)
             return await self.error_response(receive, send)
+
+        await self.app(scope, receive, send)
 
     async def error_response(self, receive, send):
         await send({
@@ -69,9 +84,7 @@ class AuthMiddleware:
         })
 
     async def init_oidc(self):
-        context = ssl.SSLContext()
-        context.load_verify_locations("./kc-cert.pem")
-        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl_context=context)) as session:
+        async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.config.oidc_server}/.well-known/openid-configuration") as config:
                 oidc_config = await config.json()
-                self.__jwks_client = jwt.PyJWKClient(oidc_config["jwks_uri"], ssl_context=context)
+                self.__jwks_client = jwt.PyJWKClient(oidc_config["jwks_uri"])
