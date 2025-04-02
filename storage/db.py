@@ -46,7 +46,8 @@ def engine(config: DBConfig):
         if session.is_root:
             connection.execute(sqlalchemy.sql.text(f"SET local jwt.claims.roles = \'{root_uuid}\';"))
         else:
-            connection.execute(sqlalchemy.sql.text(f"SET local jwt.claims.roles = \'{request.scope['uuid']}\';"))
+            ids = ",".join(request.scope['uuid'])
+            connection.execute(sqlalchemy.sql.text(f"SET local jwt.claims.roles = \'{ids}\';"))
 
     return engine
 
@@ -88,7 +89,7 @@ def _setup_rls_users(conn: Connection):
                                   ARRAY[users.kc_uuid]::UUID[] && regexp_split_to_array(current_setting('jwt.claims.roles'), ',')::uuid[]
                                 )
                                 with check (
-                                  users.kc_uuid::UUID = current_setting('jwt.claims.roles')::uuid
+                                  ARRAY[users.kc_uuid::UUID] && regexp_split_to_array(current_setting('jwt.claims.roles'), ',')::uuid[]
                                 );
                             """)
     ]
@@ -192,7 +193,7 @@ def _default_rls(name: str) -> [str]:
             as permissive
             for ALL
             using (
-              '{root_uuid}'::UUID = current_setting('jwt.claims.roles')::uuid
+              ARRAY['{root_uuid}'::UUID] && regexp_split_to_array(current_setting('jwt.claims.roles'), ',')::uuid[]
             );
         """)
     ]

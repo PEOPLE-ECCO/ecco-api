@@ -32,7 +32,6 @@ class AuthMiddleware:
             await self.init_oidc()
 
         if "headers" not in scope:
-            print("no headers in scope")
             return await self.error_response(receive, send)
 
         token = None
@@ -52,21 +51,20 @@ class AuthMiddleware:
                 algorithms=["RS256"],
                 issuer=self.config.oidc_server,
                 options={
-                    "verify_signature": False,
-                    "verify_exp": False,
-                    "verify_nbf": False,
-                    "verify_iat": False,
-                    "verify_aud": False,
-                    "verify_iss": False,
+                    "verify_signature": True,
+                    "verify_exp": True,
+                    "verify_nbf": True,
+                    "verify_iat": True,
+                    "verify_aud": True,
+                    "verify_iss": True,
                 },
             )
-            print(decoded)
+
             scope["username"] = decoded['name']
             scope["mail"] = decoded['email']
-            scope["uuid"] = decoded['sub']  # + decoded['groups_uuids']
+            scope["uuid"] = [decoded['sub']] + decoded['groups_uuids']
 
         except Exception as e:
-            print(e)
             return await self.error_response(receive, send)
 
         await self.app(scope, receive, send)
