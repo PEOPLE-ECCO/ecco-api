@@ -4,6 +4,7 @@ import random
 from typing import Dict
 
 import click
+from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from storage.db import DBSession, setup_db, DBConfig, engine
@@ -15,22 +16,26 @@ def cli():
     pass
 
 
-@click.command()
-def initdb():
-    click.echo('Initialized the database')
-    eng = engine(DBConfig(
+def open() -> Engine:
+    return engine(DBConfig(
         host=os.environ.get("ECCO_DB_HOST", "localhost"),
         port=int(os.environ.get("ECCO_DB_PORT", 5431)),
-        user=os.environ.get("ECCO_DB_USER", ""),
-        password=os.environ.get("ECCO_DB_PASSWORD", ""),
+        user=os.environ.get("ECCO_DB_USER", "api"),
+        password=os.environ.get("ECCO_DB_PASSWORD", "populate retying wasabi undefined overripe1 jolt"),
         dbname=os.environ.get("ECCO_DB_DBNAME", "ecco")
     ))
-    setup_db(eng)
+
+
+@click.command()
+def initdb():
+    click.echo('Initializing the database')
+    engine = open()
+    setup_db(engine)
 
 
 @click.command()
 def adddata():
-    initdb()
+    engine = open()
     with DBSession(admin=True, engine=engine) as sess:
         uuids = {
             "kc_garamba_uuid": "71919f81-6934-4cb3-8179-1354c788c618"

@@ -40,6 +40,14 @@ def engine(config: DBConfig):
     if config.drop_tables:
         Base.metadata.drop_all(engine)
 
+    @event.listens_for(Session, 'after_begin')
+    def switch_to_user(session, transaction, connection):
+        ## TODO: ensure that this is really a uuid. this smells like sql injection
+        if session.is_root:
+            connection.execute(sqlalchemy.sql.text(f"SET local jwt.claims.roles = \'{root_uuid}\';"))
+        else:
+            connection.execute(sqlalchemy.sql.text(f"SET local jwt.claims.roles = \'{request.scope['uuid']}\';"))
+
     return engine
 
 
@@ -56,14 +64,6 @@ def setup_db(engine: Engine):
     _setup_rls_jobs(conn)
     _setup_rls_processes(conn)
     _setup_rls_timeseries(conn)
-
-    @event.listens_for(Session, 'after_begin')
-    def switch_to_user(session, transaction, connection):
-        ## TODO: ensure that this is really a uuid. this smells like sql injection
-        if session.is_root:
-            connection.execute(sqlalchemy.sql.text(f"SET local jwt.claims.roles = \'{root_uuid}\';"))
-        else:
-            connection.execute(sqlalchemy.sql.text(f"SET local jwt.claims.roles = \'{request.scope['uuid']}\';"))
 
     current_app.db_engine = engine
 
