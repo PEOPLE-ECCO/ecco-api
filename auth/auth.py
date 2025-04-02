@@ -48,6 +48,7 @@ class AuthMiddleware:
             decoded = jwt.decode(
                 token,
                 signing_key.key,
+                aud="ecco-proxy",
                 algorithms=["RS256"],
                 issuer=self.config.oidc_server,
                 options={
