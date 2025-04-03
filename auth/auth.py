@@ -48,7 +48,7 @@ class AuthMiddleware:
             decoded = jwt.decode(
                 token,
                 signing_key.key,
-                aud="ecco-proxy",
+                audience="ecco-proxy",
                 algorithms=["RS256"],
                 issuer=self.config.oidc_server,
                 options={
@@ -66,6 +66,7 @@ class AuthMiddleware:
             scope["uuid"] = [decoded['sub']] + decoded['groups_uuids']
 
         except Exception as e:
+            print(f"AUTH ERROR: {e}")
             return await self.error_response(receive, send)
 
         await self.asgi(scope, receive, send)

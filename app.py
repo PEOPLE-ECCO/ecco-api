@@ -26,15 +26,15 @@ APP.url_map.strict_slashes = True
 APP.config["root"] = os.environ.get("ECCO_HOST", "people-ecco.dev.52north.org")
 
 APP.config["S3"] = Minio(
-    os.environ.get("ECCO_S3_URL", "192.168.52.212:9000"),
-    secure=False,
-    access_key=os.environ.get("ECCO_S3_ACCESS_KEY", "asdf"),
-    secret_key=os.environ.get("ECCO_S3_SECRET_KEY", "asdfff")
+    os.environ.get("ECCO_S3_URL", "s3.people-ecco.dev.52north.org"),
+    secure=True,
+    access_key=os.environ.get("ECCO_S3_ACCESS_KEY", "aa"),
+    secret_key=os.environ.get("ECCO_S3_SECRET_KEY", "aaa")
 )
-
+# APP.config["S3"].trace_on(sys.stdout)
 
 @APP.before_serving
-def setup():
+async def setup():
     eng = engine(DBConfig(
         host=os.environ.get("ECCO_DB_HOST", "localhost"),
         port=int(os.environ.get("ECCO_DB_PORT", 5431)),
