@@ -136,21 +136,21 @@ def add_example_timeseries(sess: Session, uuids: Dict[str, str]):
         scenario_id=1,
         name="test_ts_1",
         description="test_ts_1_description",
-        catalog="http://localhost:5000/stac/catalog.json",
+        catalog="/api/stac/catalog.json",
         acl_read=uuids.values()
     )
     example_ts_2 = Timeseries(
         scenario_id=2,
         name="test_ts_2",
         description="test_ts_2_description",
-        catalog="http://localhost:5000/stac/catalog.json",
+        catalog="/api/stac/catalog.json",
         acl_read=uuids.values()
     )
     example_ts_3 = Timeseries(
         scenario_id=1,
         name="test_ts_3",
         description="test_ts_3_description",
-        catalog="http://localhost:5000/stac/catalog.json",
+        catalog="/api/stac/catalog.json",
         acl_read=uuids.values()
     )
 
@@ -171,7 +171,7 @@ def add_example_jobs(sess: Session, uuids: Dict[str, str]):
         executionTimeEnd=datetime.datetime.now(),
         credits=random.randint(0, 1_000),
         log="test.txt",
-        catalog="http://localhost:5000/stac/stac_2017-05_garamba.json",
+        catalog="/api/stac/stac_2017-05_garamba.json",
         acl_read=uuids.values()
     )
 
@@ -183,7 +183,7 @@ def add_example_jobs(sess: Session, uuids: Dict[str, str]):
         executionTimeEnd=datetime.datetime.now(),
         credits=random.randint(0, 15),
         log="test.txt",
-        catalog="http://localhost:5000/stac/stac_2018-05_garamba.json",
+        catalog="/api/stac/stac_2018-05_garamba.json",
         acl_read=uuids.values()
     )
 
@@ -195,7 +195,7 @@ def add_example_jobs(sess: Session, uuids: Dict[str, str]):
         executionTimeEnd=datetime.datetime.now(),
         credits=random.randint(0, 15),
         log="test.txt",
-        catalog="http://localhost:5000/stac/stac_2019-05_garamba.json",
+        catalog="/api/stac/stac_2019-05_garamba.json",
         acl_read=uuids.values()
     )
 
@@ -207,7 +207,7 @@ def add_example_jobs(sess: Session, uuids: Dict[str, str]):
         executionTimeEnd=datetime.datetime.now(),
         credits=random.randint(0, 123123),
         log="test.txt",
-        catalog="http://localhost:5000/stac/stac_2017-05_garamba.json",
+        catalog="/api/stac/stac_2017-05_garamba.json",
         acl_read=uuids.values()
     )
 
@@ -219,7 +219,7 @@ def add_example_jobs(sess: Session, uuids: Dict[str, str]):
         executionTimeEnd=datetime.datetime.now(),
         credits=random.randint(0, 111),
         log="test.txt",
-        catalog="http://localhost:5000/stac/stac_2019-05_garamba.json",
+        catalog="/api/stac/stac_2019-05_garamba.json",
         acl_read=uuids.values()
     )
 

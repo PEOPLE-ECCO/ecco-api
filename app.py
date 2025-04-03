@@ -1,12 +1,12 @@
 import os
 
+from hypercorn.middleware import ProxyFixMiddleware
 from minio import Minio
 from quart import Quart, request
 from quart_cors import cors
 from sqlalchemy import select
 
 from auth.auth import AuthConfig, AuthMiddleware
-# from storage.routes import storage_bp
 from stac.routes import stac_bp
 from storage.db import engine, setup_db, DBSession, DBConfig
 from storage.definitions import *
@@ -15,7 +15,9 @@ AUTH_CONFIG = AuthConfig("ecco-proxy", "https://people-ecco.dev.52north.org/auth
 
 APP = Quart(__name__)
 
-APP = cors(APP, allow_origin="*")
+APP: Quart = cors(APP, allow_origin="*")
+APP: Quart = ProxyFixMiddleware(APP, mode="modern", trusted_hops=1)
+
 APP.asgi_app = AuthMiddleware(APP, AUTH_CONFIG)
 APP.register_blueprint(stac_bp)
 # APP.register_blueprint(storage_bp)
@@ -85,6 +87,7 @@ async def get_or_create_user():
             return sess.scalar(user_query).as_dict()
         else:
             return user.as_dict()
+
 
 APP.run(host="0.0.0.0", debug=True)
 
