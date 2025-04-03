@@ -2,8 +2,8 @@ from dataclasses import dataclass
 
 import aiohttp
 import jwt
+from hypercorn.typing import ASGIFramework
 from jwt import PyJWKClient
-from quart import Quart
 
 
 @dataclass
@@ -15,8 +15,8 @@ class AuthConfig:
 class AuthMiddleware:
     __jwks_client: PyJWKClient = None
 
-    def __init__(self, app: Quart, config: AuthConfig):
-        self.app = app.asgi_app
+    def __init__(self, asgi: ASGIFramework, config: AuthConfig):
+        self.asgi = asgi
         self.config = config
 
     async def startup(self) -> None:
@@ -24,9 +24,9 @@ class AuthMiddleware:
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "lifespan":
-            return await self.app(scope, receive, send)
+            return await self.asgi(scope, receive, send)
         if scope["method"] == "OPTIONS":
-            return await self.app(scope, receive, send)
+            return await self.asgi(scope, receive, send)
 
         if not self.__jwks_client:
             await self.init_oidc()
@@ -68,7 +68,7 @@ class AuthMiddleware:
         except Exception as e:
             return await self.error_response(receive, send)
 
-        await self.app(scope, receive, send)
+        await self.asgi(scope, receive, send)
 
     async def error_response(self, receive, send):
         await send({

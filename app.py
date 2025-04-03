@@ -16,9 +16,9 @@ AUTH_CONFIG = AuthConfig("ecco-proxy", "https://people-ecco.dev.52north.org/auth
 APP = Quart(__name__)
 
 APP: Quart = cors(APP, allow_origin="*")
-APP: Quart = ProxyFixMiddleware(APP, mode="modern", trusted_hops=1)
+APP.asgi_app = ProxyFixMiddleware(APP.asgi_app, mode="modern", trusted_hops=1)
+APP.asgi_app = AuthMiddleware(APP.asgi_app, AUTH_CONFIG)
 
-APP.asgi_app = AuthMiddleware(APP, AUTH_CONFIG)
 APP.register_blueprint(stac_bp)
 # APP.register_blueprint(storage_bp)
 APP.url_map.strict_slashes = True
