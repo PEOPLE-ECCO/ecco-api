@@ -125,6 +125,7 @@ class Process(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(30))
+    scenario_id = Column(Integer, ForeignKey(Scenario.id))
     git_commit: Mapped[str] = mapped_column(String(40))
     git_repo: Mapped[str]
     git_location: Mapped[str]
@@ -141,6 +142,7 @@ class Process(Base):
         return {
             "id": self.id,
             "name": self.name,
+            "scenario_id": self.scenario_id,
             "git_commit": self.git_commit,
             "git_repo": self.git_repo,
             "git_location": self.git_location,

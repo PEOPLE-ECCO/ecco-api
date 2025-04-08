@@ -17,7 +17,7 @@ class DBConfig:
     user: str
     password: str
     dbname: str
-    drop_tables = False
+    recreate_tables = False
     debug = False
 
 
@@ -31,14 +31,11 @@ class DBSession(Session):
         self.is_root = admin
 
 
-def engine(config: DBConfig):
+def connect_db(config: DBConfig) -> Engine:
     engine = create_engine(
         f"postgresql+psycopg://{config.user}:{config.password}@{config.host}:{config.port}/{config.dbname}",
         echo=config.debug
     )
-
-    if config.drop_tables:
-        Base.metadata.drop_all(engine)
 
     @event.listens_for(Session, 'after_begin')
     def switch_to_user(session, transaction, connection):
@@ -49,24 +46,25 @@ def engine(config: DBConfig):
             ids = ",".join(request.scope['uuid'])
             connection.execute(sqlalchemy.sql.text(f"SET local jwt.claims.roles = \'{ids}\';"))
 
+    if current_app:
+        current_app.db_engine = engine
     return engine
 
 
-def setup_db(engine: Engine):
+def recreate_tables(engine: Engine):
     """
     Initalizes the databases - adds schemas if required
     """
 
+    conn = engine.connect()
+    Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
 
-    conn = engine.connect()
     _setup_rls_users(conn)
     _setup_rls_scenarios(conn)
     _setup_rls_jobs(conn)
     _setup_rls_processes(conn)
     _setup_rls_timeseries(conn)
-
-    current_app.db_engine = engine
 
 
 def _setup_rls_users(conn: Connection):

@@ -14,3 +14,6 @@ quart-cors
 cryptography
 PyJWT
 hypercorn[uvloop]
+
+openeo
+celery[redis]

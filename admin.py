@@ -7,7 +7,7 @@ import click
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
-from storage.db import DBSession, setup_db, DBConfig, engine
+from storage.db import DBSession, recreate_tables, DBConfig, connect_db
 from storage.definitions import Process, Scenario, Job, JobStatus, Timeseries
 
 
@@ -17,11 +17,11 @@ def cli():
 
 
 def open() -> Engine:
-    return engine(DBConfig(
+    return connect_db(DBConfig(
         host=os.environ.get("ECCO_DB_HOST", "localhost"),
         port=int(os.environ.get("ECCO_DB_PORT", 5431)),
-        user=os.environ.get("ECCO_DB_USER", "api"),
-        password=os.environ.get("ECCO_DB_PASSWORD", "populate retying wasabi undefined overripe1 jolt"),
+        user=os.environ.get("ECCO_DB_USER", ""),
+        password=os.environ.get("ECCO_DB_PASSWORD", ""),
         dbname=os.environ.get("ECCO_DB_DBNAME", "ecco")
     ))
 
@@ -30,7 +30,7 @@ def open() -> Engine:
 def initdb():
     click.echo('Initializing the database')
     engine = open()
-    setup_db(engine)
+    recreate_tables(engine)
 
 
 @click.command()
