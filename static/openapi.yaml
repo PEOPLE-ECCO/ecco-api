@@ -1,0 +1,587 @@
+openapi: 3.1.0
+info:
+  title: PEOPLE-ECCO API
+  description: |-
+    API definition for 
+
+    Some useful links:
+    - [The People-Ecco Github organization](https://github.com/PEOPLE-ECCO)
+
+  contact:
+    email: people-ecco@52north.org
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 0.0.1
+
+servers:
+  - url: https://people-ecco.dev.52north.org/api/
+tags:
+  - name: scenario
+    description: Information about available Scenarios
+  - name: user
+    description: Information about currently logged-in user
+  - name: process
+    description: Processing & Jobs
+paths:
+  /scenarios:
+    get:
+      tags:
+        - scenario
+      summary: Gets a list of predefined scenarios
+      description: Scenarios are predefined combinations of parameters and a process that is to be executed
+      responses:
+        '200':
+          description: list of scenarios operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Scenario'
+      security:
+        - api_auth:
+            - read:scenarios
+  /scenarios/{scenarioId}:
+    get:
+      tags:
+        - scenario
+      summary: Find scenario by ID
+      description: Returns a single scenario
+      parameters:
+        - name: scenarioId
+          in: path
+          description: ID of scenario to return
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+        '400':
+          description: Invalid ID supplied
+        '404':
+          description: not found
+      security:
+        - api_key: []
+        - api_auth:
+            - read:scenarios
+  /scenarios/{scenarioId}/timeseries:
+    get:
+      tags:
+        - timeseries
+      summary: Get all timeseries of this scenario
+      description: Get all timeseries of this scenario
+      parameters:
+        - name: scenarioId
+          in: path
+          description: ID of scenario
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Timeseries'
+        '400':
+          description: Invalid ID supplied
+        '404':
+          description: Not found
+      security:
+        - api_key: []
+        - api_auth:
+            - read:scenario
+    post:
+      tags:
+        - timeseries
+      summary: 'Get information about available timeseries'
+      description: A timeseries is a specific binding of parameters of a process
+      parameters:
+        - name: scenarioId
+          in: path
+          description: ID of scenario
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        $ref: '#/components/requestBodies/Timeseries'
+
+  /scenarios/{scenarioId}/timeseries/{timeseriesId}:
+    get:
+      tags:
+        - timeseries
+      summary: Get timeseries with given id
+      description: Get timeseries with given id
+      parameters:
+        - name: scenarioId
+          in: path
+          description: ID of scenario
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: timeseriesId
+          in: path
+          description: ID of timeseries
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Timeseries'
+        '400':
+          description: Invalid ID supplied
+        '404':
+          description: Not found
+      security:
+        - api_key: []
+        - api_auth:
+            - read:scenario
+
+  /scenarios/{scenarioId}/timeseries/{timeseriesId}/jobs:
+    get:
+      tags:
+        - job
+      summary: Get all Jobs that ran for this timeseries
+      description: Get all Jobs that ran for this timeseries
+      parameters:
+        - name: scenarioId
+          in: path
+          description: ID of scenario
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: timeseriesId
+          in: path
+          description: ID of timeseries
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Job'
+        '400':
+          description: Invalid ID supplied
+        '404':
+          description: Not found
+      security:
+        - api_key: []
+        - api_auth:
+            - read:scenario
+
+  /scenarios/{scenarioId}/timeseries/{timeseriesId}/jobs/{jobId}:
+    get:
+      tags:
+        - job
+      summary: Get Job by Id
+      description: Get Job by Id
+      parameters:
+        - name: scenarioId
+          in: path
+          description: ID of scenario
+          required: true
+          schema:
+            type: number
+        - name: timeseriesId
+          in: path
+          description: ID of timeseries
+          required: true
+          schema:
+            type: number
+        - name: jobId
+          in: path
+          description: ID of job
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Job'
+        '400':
+          description: Invalid ID supplied
+        '404':
+          description: Not found
+      security:
+        - api_key: []
+        - api_auth:
+            - read:scenario
+
+  /scenarios/{scenarioId}/timeseries/{timeseriesId}/jobs/{jobId}/log:
+    get:
+      tags:
+        - job
+      summary: Get all Jobs that ran for this timeseries
+      description: Get all Jobs that ran for this timeseries
+      parameters:
+        - name: scenarioId
+          in: path
+          description: ID of scenario
+          required: true
+          schema:
+            type: number
+        - name: timeseriesId
+          in: path
+          description: ID of timeseries
+          required: true
+          schema:
+            type: number
+        - name: jobId
+          in: path
+          description: ID of job
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/JobLog'
+        '400':
+          description: Invalid ID supplied
+        '404':
+          description: Invalid ID supplied
+      security:
+        - api_key: []
+        - api_auth:
+            - read:scenario
+
+  /scenarios/{scenarioId}/timeseries/{timeseriesId}/jobs/{jobId}/catalog:
+    get:
+      tags:
+        - job
+      summary: Get the STAC Catalog describing all results generated by this Job
+      description: Get the STAC Catalog describing all results generated by this Job
+      parameters:
+        - name: scenarioId
+          in: path
+          description: ID of scenario
+          required: true
+          schema:
+            type: number
+        - name: timeseriesId
+          in: path
+          description: ID of timeseries
+          required: true
+          schema:
+            type: number
+        - name: jobId
+          in: path
+          description: ID of job
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/STACCatalog'
+        '400':
+          description: Invalid ID supplied
+        '404':
+          description: Invalid ID supplied
+      security:
+        - api_key: []
+        - api_auth:
+            - read:scenario
+
+
+  /scenarios/{scenarioId}/processes:
+    get:
+      tags:
+        - process
+      summary: 'Get information about available processes'
+      description: Returns information about the current user
+      parameters:
+        - name: scenarioId
+          in: path
+          description: ID of scenario
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Process'
+      security:
+        - api_key: []
+        - api_auth:
+            - read:process
+
+  /processes/{processId}:
+    get:
+      tags:
+        - process
+      summary: 'Get information about available processes'
+      description: Returns information about the current user
+      parameters:
+        - name: processId
+          in: path
+          description: ID of scenario to return
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid ID supplied
+        '404':
+          description: Process not found
+      security:
+        - api_key: []
+        - api_auth:
+            - read:user
+            - read:scenario
+
+  /processes/{processId}/execute:
+    post:
+      tags:
+        - process
+      summary: 'Schedule execution of a process'
+      description: Schedules execution of a process with given parameters
+      parameters:
+        - name: processId
+          in: path
+          description: ID of scenario to return
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        $ref: '#/components/requestBodies/ExecutionRequest'
+      responses:
+        '200':
+          description: successful operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          description: Invalid ID supplied
+        '404':
+          description: Process not found
+      security:
+        - api_key: []
+        - api_auth:
+            - read:user
+            - read:scenario
+
+  /user:
+    get:
+      tags:
+        - user
+      summary: 'Get information about the currently logged-in user'
+      description: Returns information about the current user
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+      security:
+        - api_key: []
+        - api_auth:
+            - read:user
+            - read:scenario
+components:
+  schemas:
+    Scenario:
+      type: object
+      properties:
+        id:
+          type: string
+          readonly: true
+          format: number
+          examples: ["1"]
+        name:
+          type: string
+        description:
+          type: string
+        preview_image:
+          type: string
+
+    Timeseries:
+      type: object
+      properties:
+        id:
+          type: string
+          format: number
+          readonly: true
+          examples: ["2"]
+        name:
+          type: string
+        description:
+          type: string
+        process:
+          type: string
+        process_parameters:
+          type: array
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readonly: true
+          examples: ["52db1f34-6bd7-447f-ac82-229b0793ddf8"]
+        openeo_id:
+          type: string
+          readonly: true
+          examples: ["52db1f34-6bd7-447f-ac82-229b0793ddf8"]
+        timeseries_id:
+          type: string
+          readonly: true
+          format: number
+          examples: ["12"]
+        status:
+          "enum": ["SCHEDULED", "RUNNING", "COMPLETED", "CANCELED", "ERROR"]
+        scheduleTime:
+          type: string
+          format: "date-time"
+          description: "Timestamp this job was scheduled for execution"
+        executionTimeStart:
+          type: [string, "null"]
+          format: "date-time"
+          description: "Timestamp this job started executing. Null if job was not executed yet"
+        executionTimeEnd:
+          type: [string, "null"]
+          format: "date-time"
+          description: "Timestamp this job finished (including crashed, errored, canceled). Null if job was not executed yet"
+        credits:
+          type: ["number", "null"]
+          description: "Amount of credits consumed by this job. Null if job was not executed yet"
+
+    JobLog:
+      type: array
+      items:
+        type: object
+
+    STACCatalog:
+      type: object
+
+    Process:
+      description: "Process"
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readonly: true
+          examples: ["52db1f34-6bd7-447f-ac82-229b0793ddf8"]
+        parameters:
+          type: object
+          description: Parameters required to be set for this process to execute
+    User:
+      description: "User Information"
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          examples: ["52db1f34-6bd7-447f-ac82-229b0793ddf8"]
+        username:
+          type: string
+          examples: ["Salvador Dali"]
+        credits:
+          type: string
+          format: integer
+          examples: ["52"]
+
+  requestBodies:
+    ExecutionRequest:
+      description: Request for calculation of Timeseries Values with given parameters
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              parameters:
+                type: array
+                items:
+                  type: object
+            examples:
+              - parameters:
+                  timestamps: [
+                    ["2025-06-06T00:00:00","2025-06-10T00:00:00"],
+                    ["2027-12-12T00:00:00","2027-12-20T00:00:00"]
+                  ]
+    Timeseries:
+      description: Request for creating a new timeseries
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name:
+                type: string
+              description:
+                type: string
+              process:
+                type: string
+                format: uuid
+              parameters:
+                type: object
+            examples:
+              - name: test_timeseries_1
+                description: test_timeseries_1
+                process: 7
+                parameters:
+                  bbox: [12,12,12,12]
+                  threshold: 123
+  securitySchemes:
+    api_auth:
+      type: oauth2
+      flows:
+        implicit:
+          authorizationUrl: https://people-ecco.dev.52north.org/auth/
+    api_key:
+      type: apiKey
+      name: api_key
+      in: header

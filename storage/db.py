@@ -26,7 +26,10 @@ class DBSession(Session):
 
     def __init__(self, admin=False, engine=None):
         if not engine:
-            engine = current_app.db_engine
+            if hasattr(current_app, "db_engine"):
+                engine = current_app.db_engine
+            else:
+                engine = connect_db(current_app.config["db"])
         super().__init__(engine)
         self.is_root = admin
 

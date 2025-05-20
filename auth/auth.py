@@ -69,7 +69,7 @@ class AuthMiddleware:
             print(f"AUTH ERROR: {e}")
             return await self.error_response(receive, send)
 
-        await self.asgi(scope, receive, send)
+        return await self.asgi(scope, receive, send)
 
     async def error_response(self, receive, send):
         await send({

@@ -1,11 +1,11 @@
 import datetime
 import enum
 import uuid
-from typing import Optional, List
+from typing import Optional
 
 from sqlalchemy import Column, String, func, Index, Integer, Sequence, ForeignKey
 from sqlalchemy.dialects.postgresql import ARRAY, UUID, JSONB
-from sqlalchemy.orm import Mapped, DeclarativeBase, mapped_column, relationship
+from sqlalchemy.orm import Mapped, DeclarativeBase, mapped_column
 
 
 class Base(DeclarativeBase):
@@ -53,8 +53,11 @@ class Scenario(Base):
 
 
 class JobStatus(enum.Enum):
-    SCHEDULED = enum.auto(),
+    INIT = enum.auto(),
+    CREATED = enum.auto(),
+    QUEUED = enum.auto(),
     RUNNING = enum.auto(),
+    AWAITING_RESULT_DOWNLOAD = enum.auto(),
     COMPLETED = enum.auto(),
     CANCELED = enum.auto(),
     ERROR = enum.auto()
@@ -64,16 +67,19 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    status: Mapped[JobStatus]
+    openeo_id: Mapped[Optional[str]]
     timeseries_id: Mapped[UUID] = mapped_column(ForeignKey("timeseries.id"))
-    timeseries: Mapped["Timeseries"] = relationship(back_populates="jobs")
+    status: Mapped[JobStatus]
     scheduleTime: Mapped[datetime.datetime] = mapped_column(server_default=func.now())
+
     executionTimeStart: Mapped[Optional[datetime.datetime]]
     executionTimeEnd: Mapped[Optional[datetime.datetime]]
     credits: Mapped[Optional[float]]
-    log: Mapped[Optional[str]]
-    catalog: Mapped[Optional[str]]
+
+    log = Column(JSONB)
+
     #     properties: Mapped[Optional[dict]] = Column(JSONB)
+    download_finished = Mapped[bool]
     acl_read: Mapped[[uuid]] = Column(ARRAY(UUID), nullable=False)
 
     __table_args__ = (
@@ -84,13 +90,12 @@ class Job(Base):
         return {
             "id": self.id,
             "timeseries_id": self.timeseries_id,
-            "status": "ASDFASDF",
+            "openeo_id": self.openeo_id,
+            "status": self.status.value,
             "scheduleTime": self.scheduleTime,
             "executionTimeStart": self.executionTimeStart,
             "executionTimeEnd": self.executionTimeEnd,
-            "credits": self.credits,
-            "log": self.log,
-            "catalog": self.catalog,
+            "credits": self.credits
         }
 
 
@@ -101,8 +106,12 @@ class Timeseries(Base):
     name: Mapped[str] = mapped_column(String(30))
     scenario_id = Column(Integer, ForeignKey(Scenario.id))
     description: Mapped[str]
-    jobs: Mapped[List["Job"]] = relationship(back_populates="timeseries")
-    catalog: Mapped[Optional[str]]
+    bucket: Mapped[str]
+
+    process = Column(Integer, ForeignKey("processes.id"))
+    process_parameters: Mapped[Optional[dict]] = Column(JSONB)
+
+    # jobs: Mapped[List["Job"]] = relationship(back_populates="timeseries")
 
     acl_read: Mapped[[uuid]] = Column(ARRAY(UUID), nullable=False)
     __table_args__ = (
@@ -112,11 +121,10 @@ class Timeseries(Base):
     def as_dict(self):
         return {
             "id": self.id,
-            "scenario_id": self.scenario_id,
             "name": self.name,
             "description": self.description,
-            "catalog": self.catalog,
-            "jobs": [job.as_dict() for job in self.jobs],
+            "process": self.process,
+            "process_parameters": self.process_parameters
         }
 
 
@@ -125,7 +133,7 @@ class Process(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(30))
-    scenario_id = Column(Integer, ForeignKey(Scenario.id))
+    scenario_id = Column(Integer, ForeignKey(Scenario.id), nullable=False)
     git_commit: Mapped[str] = mapped_column(String(40))
     git_repo: Mapped[str]
     git_location: Mapped[str]
@@ -142,7 +150,7 @@ class Process(Base):
         return {
             "id": self.id,
             "name": self.name,
-            "scenario_id": self.scenario_id,
+            #            "scenario_id": self.scenario_id,
             "git_commit": self.git_commit,
             "git_repo": self.git_repo,
             "git_location": self.git_location,

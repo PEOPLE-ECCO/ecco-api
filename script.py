@@ -1,6 +1,6 @@
 # /// script
 # dependencies = [
-#   "xarray==2024.11.0"
+#   "xarray==2023.1.0"
 # ]
 # ///
 

@@ -36,10 +36,7 @@ async def stac_item(item: str):
         return obj
     
     if "links" in obj:
-        for link in obj["links"]:
-            if link["rel"] == "item":
-                link["href"] = f"https://{current_app.config['root']}/stac/{link['href'][27:]}"
-        return obj
+        obj["links"] = [o for o in obj["links"] if o["rel"] not in ["item", "canonical", "self"]]
     return obj
 
 

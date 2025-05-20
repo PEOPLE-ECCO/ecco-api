@@ -1,4 +1,4 @@
-FROM python:3.13-alpine
+FROM python:3.13-alpine AS base
 
 LABEL maintainer="Jan Speckamp <j.speckamp@52north.org>" \
       org.opencontainers.image.authors="Jan Speckamp <j.speckamp@52north.org>" \
@@ -16,5 +16,10 @@ COPY requirements.txt requirements.txt
 RUN pip3 install -r requirements.txt
 COPY . .
 
+
 ENV PYTHONUNBUFFERED=1
+FROM base AS api
 CMD ["hypercorn", "-c", "hypercorn.conf.py", "app:APP"]
+
+FROM base AS celery
+CMD ["celery", "-A", "app", "worker", "--loglevel", "INFO", "-E"]
