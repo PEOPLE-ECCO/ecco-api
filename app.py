@@ -6,7 +6,7 @@ from datetime import timedelta
 from celery import Celery, Task
 from hypercorn.middleware import ProxyFixMiddleware
 from minio import Minio
-from quart import Quart, request, current_app, render_template
+from quart import Quart, request, current_app
 from quart_cors import cors
 from sqlalchemy import select
 
@@ -17,7 +17,10 @@ from storage.db import connect_db, DBSession, DBConfig
 from storage.definitions import *
 from tasks import schedule_job
 
-AUTH_CONFIG = AuthConfig("ecco-proxy", "https://people-ecco.dev.52north.org/auth/realms/people-ecco")
+AUTH_CONFIG = AuthConfig("ecco-proxy",
+                         "https://people-ecco.dev.52north.org/auth/realms/people-ecco",
+                         ["/", "/openapi.yaml"]
+                         )
 
 APP = Quart(__name__)
 
@@ -86,6 +89,7 @@ async def setup():
 @APP.get('/')
 async def redoc():
     return await APP.send_static_file("redoc.html")
+
 
 @APP.get('/openapi.yaml')
 async def openapi():

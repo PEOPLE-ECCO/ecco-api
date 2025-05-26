@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import aiohttp
 import jwt
@@ -10,6 +10,7 @@ from jwt import PyJWKClient
 class AuthConfig:
     client_id: str
     oidc_server: str
+    whitelist_paths: [str] = field(default_factory=lambda: [])  # Paths that are publicly accessible without any form of authentication
 
 
 class AuthMiddleware:
@@ -26,6 +27,8 @@ class AuthMiddleware:
         if scope["type"] == "lifespan":
             return await self.asgi(scope, receive, send)
         if scope["method"] == "OPTIONS":
+            return await self.asgi(scope, receive, send)
+        if scope["path"] in self.config.whitelist_paths:
             return await self.asgi(scope, receive, send)
 
         if not self.__jwks_client:
