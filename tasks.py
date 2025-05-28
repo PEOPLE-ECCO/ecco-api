@@ -24,6 +24,10 @@ def at_start(sender, **k):
 @shared_task()
 def init():
     with DBSession(admin=True) as sess:
+        for j in [a.id for a in sess.scalars(select(Job).where(Job.status == JobStatus.INIT))]:
+            schedule_job.delay(j)
+            LOGGER.info(f"Scheduling schedule_job for unfinished job: {j}")
+
         unfinished_jobs = [a.id for a in sess.scalars(select(Job).where(or_(Job.status == JobStatus.CREATED, Job.status == JobStatus.QUEUED, Job.status == JobStatus.RUNNING)))]
         for j in unfinished_jobs:
             job_status.delay(j)
@@ -82,7 +86,7 @@ def job_status(job_id: str):
 
         if state != job.status:
             LOGGER.info(f"Status changed! was: {job.status} now: {current_state}")
-            job.status = state
+            openeo.sync(job)
             sess.commit()
 
         if not finished:

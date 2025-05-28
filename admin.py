@@ -4,11 +4,14 @@ import random
 from typing import Dict
 
 import click
+from dotenv import load_dotenv
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from storage.db import DBSession, recreate_tables, DBConfig, connect_db
 from storage.definitions import Process, Scenario, Job, JobStatus, Timeseries
+
+load_dotenv()
 
 
 @click.group()
@@ -20,8 +23,8 @@ def open() -> Engine:
     return connect_db(DBConfig(
         host=os.environ.get("ECCO_DB_HOST", "localhost"),
         port=int(os.environ.get("ECCO_DB_PORT", 5431)),
-        user=os.environ.get("ECCO_DB_USER", ""),
-        password=os.environ.get("ECCO_DB_PASSWORD", ""),
+        user=os.environ.get("POSTGRES_ROOT_USER", ""),
+        password=os.environ.get("POSTGRES_ROOT_PASSWORD", ""),
         dbname=os.environ.get("ECCO_DB_DBNAME", "ecco")
     ))
 
@@ -42,8 +45,8 @@ def adddata():
         }
         add_example_scenarios(sess, uuids)
         add_example_processes(sess, uuids)
-        #add_example_timeseries(sess, uuids)
-        #add_example_jobs(sess, uuids)
+        # add_example_timeseries(sess, uuids)
+        # add_example_jobs(sess, uuids)
 
 
 @click.command()

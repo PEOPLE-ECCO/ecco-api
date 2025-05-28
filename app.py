@@ -4,8 +4,9 @@ import os
 from datetime import timedelta
 
 from celery import Celery, Task
+from dotenv import load_dotenv
 from hypercorn.middleware import ProxyFixMiddleware
-from minio import Minio
+from minio import Minio, S3Error
 from quart import Quart, request, current_app
 from quart_cors import cors
 from sqlalchemy import select
@@ -16,6 +17,8 @@ from stac.routes import stac_bp
 from storage.db import connect_db, DBSession, DBConfig
 from storage.definitions import *
 from tasks import schedule_job
+
+load_dotenv()
 
 AUTH_CONFIG = AuthConfig("ecco-proxy",
                          "https://people-ecco.dev.52north.org/auth/realms/people-ecco",
@@ -176,12 +179,15 @@ async def get_job_catalog(scenario_id: int, timeseries_id: int, job_id: int):
 
         # Fetch catalog
         s3 = current_app.config["S3"]
+        response = None
         try:
             response = s3.get_object(
                 ts.bucket,
                 str(job.id) + "/job-results.json",
             )
             catalog = json.loads(response.data)
+        except S3Error as e:
+            return "", 404, {'Content-Type': 'application/json'}
         finally:
             if response:
                 response.release_conn()

@@ -7,5 +7,5 @@
 import xarray
 
 def apply_datacube(cube: xarray.DataArray, context: dict) -> xarray.DataArray:
-    cube.values = 0.0001 * cube.values
+    cube.values *= 0.1
     return cube

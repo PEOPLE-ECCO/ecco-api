@@ -17,3 +17,4 @@ hypercorn[uvloop]
 
 openeo
 celery[redis]
+redis

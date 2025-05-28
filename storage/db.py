@@ -47,6 +47,7 @@ def connect_db(config: DBConfig) -> Engine:
             connection.execute(sqlalchemy.sql.text(f"SET local jwt.claims.roles = \'{root_uuid}\';"))
         else:
             ids = ",".join(request.scope['uuid'])
+            current_app.logger.error(f"registering with roles: {ids}")
             connection.execute(sqlalchemy.sql.text(f"SET local jwt.claims.roles = \'{ids}\';"))
 
     if current_app:
@@ -68,6 +69,26 @@ def recreate_tables(engine: Engine):
     _setup_rls_jobs(conn)
     _setup_rls_processes(conn)
     _setup_rls_timeseries(conn)
+
+    _setup_permissions(conn)
+
+def _setup_permissions(conn: Connection):
+    """
+    Sets up Postgres Permissions for `api` user
+    """
+    stmnts = [
+        sqlalchemy.sql.text(f"SET local jwt.claims.roles = \'{root_uuid}\';"),
+        sqlalchemy.sql.text(f"GRANT SELECT ON scenarios to api;"),
+        sqlalchemy.sql.text(f"GRANT SELECT ON processes to api;"),
+        sqlalchemy.sql.text(f"GRANT SELECT ON users to api;"),
+        sqlalchemy.sql.text(f"GRANT SELECT, INSERT ON timeseries to api;"),
+        sqlalchemy.sql.text(f"GRANT SELECT, INSERT, UPDATE ON jobs to api;"),
+        sqlalchemy.sql.text(f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA public to api;")
+    ]
+
+    for stmnt in stmnts:
+        conn.execute(stmnt)
+    conn.commit()
 
 
 def _setup_rls_users(conn: Connection):

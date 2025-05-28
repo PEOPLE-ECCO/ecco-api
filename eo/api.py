@@ -7,7 +7,8 @@ import openeo
 from openeo.rest.connection import Connection
 from openeo.rest.models.general import LogsResponse
 from openeo.udf.run_code import extract_udf_dependencies
-from storage.definitions import Process
+
+from storage.definitions import Process, Job
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)
@@ -68,8 +69,12 @@ class OpenEO:
             None,
             Collection(
                 "SENTINEL2_L2A",
-                spatial_extent={"west": 4.00, "south": 51.04, "east": 4.10, "north": 51.1},
-                temporal_extent=["2022-03-01", "2022-03-31"],
+                spatial_extent={
+                    "west": 29.35904894588991,
+                    "east": 29.59809590064704,
+                    "south": 3.9580809151849365,
+                    "north": 4.072237393003135},
+                temporal_extent=["2022-03-01", "2022-03-10"],
                 bands=["B02", "B03", "B04"]
             )
         )
@@ -93,9 +98,20 @@ class OpenEO:
 
         eojob = cube.create_job()
         eojob.start()
-        print(eojob)
-        print(eojob.job_id)
+
         return eojob.job_id
+
+    def sync(self, job: Job) -> None:
+        """
+        Syncs the internal Job representation with the processing backend
+        """
+        if not self.initialized:
+            self._init()
+        eojob : Dict = self.connection.job(job.openeo_id).describe()
+
+        job.progress = eojob.get("progress", 0)
+        job.credits = eojob.get("costs", None)
+        job.usage = eojob.get("usage", None)
 
     def get_status(self, openeo_id: str) -> str:
         """
@@ -113,6 +129,7 @@ class OpenEO:
         if not self.initialized:
             self._init()
         job = self.connection.job(openeo_id)
+        print(job)
         return job.logs(level=level)
 
     def download_results(self, openeo_id: str, output_dir: str) -> None:

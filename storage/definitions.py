@@ -75,6 +75,8 @@ class Job(Base):
     executionTimeStart: Mapped[Optional[datetime.datetime]]
     executionTimeEnd: Mapped[Optional[datetime.datetime]]
     credits: Mapped[Optional[float]]
+    progress: Mapped[Optional[float]]
+    usage = Column(JSONB)
 
     log = Column(JSONB)
 
@@ -95,7 +97,9 @@ class Job(Base):
             "scheduleTime": self.scheduleTime,
             "executionTimeStart": self.executionTimeStart,
             "executionTimeEnd": self.executionTimeEnd,
-            "credits": self.credits
+            "credits": self.credits,
+            "progress": self.progress,
+            "usage": self.usage
         }
 
 
