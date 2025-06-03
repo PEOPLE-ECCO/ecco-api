@@ -47,7 +47,7 @@ async def stac_item_rawdata(path):
     presigned_get_raw_data = s3.presigned_get_object(
         bucket,
         path,
-        expires=timedelta(minutes=5)
+        expires=timedelta(hours=5)
     )
 
     return redirect(presigned_get_raw_data, 303)

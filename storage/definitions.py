@@ -126,9 +126,10 @@ class Timeseries(Base):
         return {
             "id": self.id,
             "name": self.name,
+            "scenario_id": self.scenario_id,
             "description": self.description,
             "process": self.process,
-            "process_parameters": self.process_parameters
+            "process_parameters": self.process_parameters,
         }
 
 

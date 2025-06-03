@@ -108,8 +108,11 @@ async def get_scenarios():
 @APP.get('/scenarios/<int:scenario_id>')
 async def get_scenarios_by_id(scenario_id: int):
     with DBSession() as sess:
-        scenario = sess.get(Scenario, scenario_id)
-        return scenario.as_dict() if scenario else "", 404
+        scenario: Scenario = sess.get(Scenario, scenario_id)
+        if scenario:
+            return scenario.as_dict()
+        else:
+            return "", 404
 
 
 @APP.get('/scenarios/<int:scenario_id>/processes/')
@@ -159,14 +162,21 @@ async def get_jobs(scenario_id: int, timeseries_id: int):
 @APP.get('/scenarios/<int:scenario_id>/timeseries/<int:timeseries_id>/jobs/<int:job_id>')
 async def get_job(scenario_id: int, timeseries_id: int, job_id: int):
     with DBSession() as sess:
-        return sess.get(Job, job_id), 200, {'Content-Type': 'application/json'}
+        job = sess.get(Job, job_id)
+        if job:
+            return job.as_dict(), 200, {'Content-Type': 'application/json'}
+        else:
+            return "", 404
 
 
 @APP.get('/scenarios/<int:scenario_id>/timeseries/<int:timeseries_id>/jobs/<int:job_id>/log')
 def get_job_logs(scenario_id: int, timeseries_id: int, job_id: int):
-    LOGGER.error("TODO: validate that Job exists")
     with DBSession() as sess:
-        return sess.get(Job, job_id).log, 200, {'Content-Type': 'application/json'}
+        job = sess.get(Job, job_id)
+        if job:
+            return job.log, 200, {'Content-Type': 'application/json'}
+        else:
+            return "", 404
 
 
 @APP.get('/scenarios/<int:scenario_id>/timeseries/<int:timeseries_id>/jobs/<int:job_id>/catalog')
@@ -187,7 +197,7 @@ async def get_job_catalog(scenario_id: int, timeseries_id: int, job_id: int):
             )
             catalog = json.loads(response.data)
         except S3Error as e:
-            return "", 404, {'Content-Type': 'application/json'}
+            return "", 404
         finally:
             if response:
                 response.release_conn()
@@ -206,7 +216,7 @@ async def get_job_catalog(scenario_id: int, timeseries_id: int, job_id: int):
         return json.dumps(catalog), 200, {'Content-Type': 'application/json'}
 
 
-@APP.post('/scenarios/<int:scenario_id>/timeseries/<int:timeseries_id>')
+@APP.post('/scenarios/<int:scenario_id>/timeseries/<int:timeseries_id>/execute')
 async def post_process_execution(scenario_id: int, timeseries_id: int):
     # 1. Store in local Job DB
     # 2. Start
@@ -245,7 +255,3 @@ async def get_or_create_user():
             return sess.scalar(user_query).as_dict()
         else:
             return user.as_dict()
-
-
-if __name__ == "__main__":
-    APP.run(host="0.0.0.0", debug=True)

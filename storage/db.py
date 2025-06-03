@@ -182,7 +182,17 @@ def _setup_rls_timeseries(conn: Connection):
     Timeseries are writable by root
     """
     name = "timeseries"
-    stmnts = _default_rls(name) + _default_aclread_rls(name)
+    stmnts = _default_rls(name) + _default_aclread_rls(name) + [
+        sqlalchemy.sql.text(f"""
+                        create policy acl_write_{name}
+                            on {name}
+                            as permissive
+                            for INSERT
+                            with check (
+                              true
+                            );
+                        """)
+    ]
 
     for stmnt in stmnts:
         conn.execute(stmnt)
