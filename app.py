@@ -33,7 +33,7 @@ APP.asgi_app = AuthMiddleware(APP.asgi_app, AUTH_CONFIG)
 
 APP.register_blueprint(stac_bp)
 # APP.register_blueprint(storage_bp)
-APP.url_map.strict_slashes = True
+APP.url_map.strict_slashes = False
 
 APP.config["root"] = os.environ.get("ECCO_HOST", "people-ecco.dev.52north.org")
 
