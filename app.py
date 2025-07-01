@@ -152,7 +152,7 @@ async def post_timeseries(scenario_id: int):
         return f"{ts.id}", 201
 
 
-@APP.get('/scenarios/<int:scenario_id>/timeseries/<int:timeseries_id>/jobs')
+@APP.get('/scenarios/<int:scenario_id>/timeseries/<int:timeseries_id>/jobs/')
 async def get_jobs(scenario_id: int, timeseries_id: int):
     with DBSession() as sess:
         jobs = [a.as_dict() for a in sess.scalars(select(Job).where(Job.timeseries_id == timeseries_id))]
@@ -216,7 +216,7 @@ async def get_job_catalog(scenario_id: int, timeseries_id: int, job_id: int):
         return json.dumps(catalog), 200, {'Content-Type': 'application/json'}
 
 
-@APP.post('/scenarios/<int:scenario_id>/timeseries/<int:timeseries_id>/execute')
+@APP.post('/scenarios/<int:scenario_id>/timeseries/<int:timeseries_id>/jobs/')
 async def post_process_execution(scenario_id: int, timeseries_id: int):
     # 1. Store in local Job DB
     # 2. Start

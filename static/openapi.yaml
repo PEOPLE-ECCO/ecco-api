@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: PEOPLE-ECCO API
   description: |-
-    API definition for 
+    API definition for the 52°North PEOPLE-ECCO Wrapper/Proxy
 
     Some useful links:
     - [The People-Ecco Github organization](https://github.com/PEOPLE-ECCO)
@@ -12,7 +12,7 @@ info:
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
-  version: 0.0.1
+  version: 0.0.2
 
 servers:
   - url: https://people-ecco.dev.52north.org/api/
@@ -22,7 +22,11 @@ tags:
   - name: user
     description: Information about currently logged-in user
   - name: process
-    description: Processing & Jobs
+    description: Algorithms
+  - name: job
+    description: Jobs that can execute and produce results
+  - name: timeseries
+    description: Timeseries of results
 paths:
   /scenarios:
     get:
@@ -42,7 +46,7 @@ paths:
       security:
         - api_auth:
             - read:scenarios
-  /scenarios/{scenarioId}:
+  /scenarios/{scenarioId}/:
     get:
       tags:
         - scenario
@@ -70,20 +74,19 @@ paths:
         - api_key: []
         - api_auth:
             - read:scenarios
-  /scenarios/{scenarioId}/timeseries:
+  /scenarios/{scenarioId}/timeseries/:
     get:
       tags:
         - timeseries
-      summary: Get all timeseries of this scenario
-      description: Get all timeseries of this scenario
+      summary: Get all existing timeseries of this scenario
+      description: Get all existing timeseries of this scenario
       parameters:
         - name: scenarioId
           in: path
           description: ID of scenario
           required: true
           schema:
-            type: string
-            format: uuid
+            type: number
       responses:
         '200':
           description: successful operation
@@ -94,7 +97,7 @@ paths:
         '400':
           description: Invalid ID supplied
         '404':
-          description: Not found
+          description: not found
       security:
         - api_key: []
         - api_auth:
@@ -102,20 +105,20 @@ paths:
     post:
       tags:
         - timeseries
-      summary: 'Get information about available timeseries'
-      description: A timeseries is a specific binding of parameters of a process
+      summary: 'Create a new timeseries'
+      description: A timeseries is a specific binding of parameters of a process, only missing parameters that are individual to each execution such as a timestamp
       parameters:
         - name: scenarioId
           in: path
           description: ID of scenario
           required: true
           schema:
-            type: string
-            format: uuid
+            type: number
       requestBody:
         $ref: '#/components/requestBodies/Timeseries'
 
-  /scenarios/{scenarioId}/timeseries/{timeseriesId}:
+
+  /scenarios/{scenarioId}/timeseries/{timeseriesId}/:
     get:
       tags:
         - timeseries
@@ -127,15 +130,13 @@ paths:
           description: ID of scenario
           required: true
           schema:
-            type: string
-            format: uuid
+            type: number
         - name: timeseriesId
           in: path
           description: ID of timeseries
           required: true
           schema:
-            type: string
-            format: uuid
+            type: number
       responses:
         '200':
           description: successful operation
@@ -146,13 +147,13 @@ paths:
         '400':
           description: Invalid ID supplied
         '404':
-          description: Not found
+          description: not found
       security:
         - api_key: []
         - api_auth:
             - read:scenario
 
-  /scenarios/{scenarioId}/timeseries/{timeseriesId}/jobs:
+  /scenarios/{scenarioId}/timeseries/{timeseriesId}/jobs/:
     get:
       tags:
         - job
@@ -164,15 +165,13 @@ paths:
           description: ID of scenario
           required: true
           schema:
-            type: string
-            format: uuid
+            type: number
         - name: timeseriesId
           in: path
           description: ID of timeseries
           required: true
           schema:
-            type: string
-            format: uuid
+            type: number
       responses:
         '200':
           description: successful operation
@@ -185,18 +184,38 @@ paths:
         '400':
           description: Invalid ID supplied
         '404':
-          description: Not found
+          description: not found
       security:
         - api_key: []
         - api_auth:
             - read:scenario
+    post:
+      tags:
+        - job
+      summary: 'Create a new Job for this timeseries'
+      description: 'Creates + Runs a new Job for this timeseries, internally creating an OpenEOProcess. The Job the adds the parameters (such as the actual temporal_extent) that is individual to each job run inside a Timeseries'
+      parameters:
+        - name: scenarioId
+          in: path
+          description: ID of scenario
+          required: true
+          schema:
+            type: number
+        - name: timeseriesId
+          in: path
+          description: ID of timeseries
+          required: true
+          schema:
+            type: number
+      requestBody:
+        $ref: '#/components/requestBodies/JobExecutionRequest'
 
-  /scenarios/{scenarioId}/timeseries/{timeseriesId}/jobs/{jobId}:
+  /scenarios/{scenarioId}/timeseries/{timeseriesId}/jobs/{jobId}/:
     get:
       tags:
         - job
-      summary: Get Job by Id
-      description: Get Job by Id
+      summary: Get individual Job that ran for this timeseries
+      description: Get individual Job that ran for this timeseries
       parameters:
         - name: scenarioId
           in: path
@@ -228,7 +247,7 @@ paths:
         '400':
           description: Invalid ID supplied
         '404':
-          description: Not found
+          description: not found
       security:
         - api_key: []
         - api_auth:
@@ -238,8 +257,8 @@ paths:
     get:
       tags:
         - job
-      summary: Get all Jobs that ran for this timeseries
-      description: Get all Jobs that ran for this timeseries
+      summary: Get Log of the individual Job
+      description: Get Log of the individual Job
       parameters:
         - name: scenarioId
           in: path
@@ -321,20 +340,19 @@ paths:
             - read:scenario
 
 
-  /scenarios/{scenarioId}/processes:
+  /scenarios/{scenarioId}/processes/:
     get:
       tags:
         - process
-      summary: 'Get information about available processes'
-      description: Returns information about the current user
+      summary: 'Get information about available processes in this scenario'
+      description: Returns a list of all processes that are available in this scenario.
       parameters:
         - name: scenarioId
           in: path
           description: ID of scenario
           required: true
           schema:
-            type: string
-            format: uuid
+            type: number
       responses:
         '200':
           description: successful operation
@@ -347,69 +365,6 @@ paths:
         - api_auth:
             - read:process
 
-  /processes/{processId}:
-    get:
-      tags:
-        - process
-      summary: 'Get information about available processes'
-      description: Returns information about the current user
-      parameters:
-        - name: processId
-          in: path
-          description: ID of scenario to return
-          required: true
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '200':
-          description: successful operation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-        '400':
-          description: Invalid ID supplied
-        '404':
-          description: Process not found
-      security:
-        - api_key: []
-        - api_auth:
-            - read:user
-            - read:scenario
-
-  /processes/{processId}/execute:
-    post:
-      tags:
-        - process
-      summary: 'Schedule execution of a process'
-      description: Schedules execution of a process with given parameters
-      parameters:
-        - name: processId
-          in: path
-          description: ID of scenario to return
-          required: true
-          schema:
-            type: integer
-            format: int64
-      requestBody:
-        $ref: '#/components/requestBodies/ExecutionRequest'
-      responses:
-        '200':
-          description: successful operation.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Job'
-        '400':
-          description: Invalid ID supplied
-        '404':
-          description: Process not found
-      security:
-        - api_key: []
-        - api_auth:
-            - read:user
-            - read:scenario
 
   /user:
     get:
@@ -429,6 +384,7 @@ paths:
         - api_auth:
             - read:user
             - read:scenario
+
 components:
   schemas:
     Scenario:
@@ -535,8 +491,8 @@ components:
           examples: ["52"]
 
   requestBodies:
-    ExecutionRequest:
-      description: Request for calculation of Timeseries Values with given parameters
+    JobExecutionRequest:
+      description: Request for creating a Job with given parameters
       content:
         application/json:
           schema:
@@ -548,10 +504,7 @@ components:
                   type: object
             examples:
               - parameters:
-                  timestamps: [
-                    ["2025-06-06T00:00:00","2025-06-10T00:00:00"],
-                    ["2027-12-12T00:00:00","2027-12-20T00:00:00"]
-                  ]
+                  timestamps: ["2027-12-12T00:00:00","2027-12-20T00:00:00"]
     Timeseries:
       description: Request for creating a new timeseries
       content:
@@ -580,7 +533,9 @@ components:
       type: oauth2
       flows:
         implicit:
-          authorizationUrl: https://people-ecco.dev.52north.org/auth/
+          authorizationUrl: https://petstore3.swagger.io/oauth/authorize
+          scopes:
+            read:scenario: read your pets
     api_key:
       type: apiKey
       name: api_key
