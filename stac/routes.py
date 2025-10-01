@@ -4,29 +4,12 @@ from .util import *
 
 stac_bp = Blueprint('stac', __name__)
 
-# s3fs = S3FS(
-#         endpoint_url="http://localhost:9000",
-#         bucket_name="ecco",
-#         dir_path="/".join(path[1:-1]),
-#         aws_access_key_id='L104ON1uPWWGqluu1ISn',
-#         aws_secret_access_key='ETUD4asgDvwxsfC7gxSrQrYwcg0wvkXN6PPPSa7f'
-#     )
-
-# TODO: get bucket of user dynamically
-
-# We only handle metadata requests here
-# Raw observation-data is directly streamed from S3
-# @stac_bp.get('/stac')
-# async def stac_root():
-#    return await get_object(bucket, "catalog.json")
-
-
 @stac_bp.get('/stac/<path:item>')
 async def stac_item(item: str):
     bucket = "ecco"
     obj = await get_object(bucket, item)
     if "assets" in obj:
-        s3 = current_app.config["S3"]
+        s3 : Minio = current_app.config["S3"]
         presigned_get_raw_data = s3.presigned_get_object(
             bucket,
             obj["assets"]["asset"]["href"][37:],

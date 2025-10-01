@@ -1,13 +1,20 @@
 import logging
+import os
+import pathlib
+import sys
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Iterable, Dict
+from typing import Iterable, Dict
 
 import openeo
 from openeo.rest.connection import Connection
 from openeo.rest.models.general import LogsResponse
 from openeo.udf.run_code import extract_udf_dependencies
+from prefect import deploy
+from prefect.blocks.system import Secret
+from prefect.docker import DockerImage
 
+from eo.algorithms.wrapper import get_openeo_connection
 from storage.definitions import Process, Job
 
 LOGGER = logging.getLogger(__name__)
@@ -29,13 +36,13 @@ class SpatialExtent(Dict):
     north: float
 
 
-@dataclass(frozen=True)
+@dataclass()
 class Collection:
     name: str
     spatial_extent: SpatialExtent
-    temporal_extent: (datetime.date, datetime.date)
     bands: Iterable[str]
-    max_cloud_cover: Optional[float] = None
+
+    temporal_extent: (datetime.date, datetime.date)
 
 
 @dataclass(frozen=True)
@@ -63,21 +70,6 @@ class OpenEO:
         """
         if not self.initialized:
             self._init()
-        for _ in range(5):
-            LOGGER.debug("OVERWRITING PROCESS WITH HARDCODED DEBUGGING PROCESS")
-        to_run = OpenEOProcess(
-            None,
-            Collection(
-                "SENTINEL2_L2A",
-                spatial_extent={
-                    "west": 29.35904894588991,
-                    "east": 29.59809590064704,
-                    "south": 3.9580809151849365,
-                    "north": 4.072237393003135},
-                temporal_extent=["2022-03-01", "2022-03-10"],
-                bands=["B02", "B03", "B04"]
-            )
-        )
 
         cube = self.connection.load_collection(
             to_run.collection.name,
@@ -107,7 +99,7 @@ class OpenEO:
         """
         if not self.initialized:
             self._init()
-        eojob : Dict = self.connection.job(job.openeo_id).describe()
+        eojob: Dict = self.connection.job(job.openeo_id).describe()
 
         job.progress = eojob.get("progress", 0)
         job.credits = eojob.get("costs", None)

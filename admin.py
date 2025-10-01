@@ -86,9 +86,6 @@ def add_example_processes(sess: Session, uuids: Dict[str, str]):
         name="basic_ndvi",
         description="Calculates the basic NDVI",
         scenario_id=1,
-        git_commit="2825818f7c8490094820fbba78db3d8052245cc6",
-        git_repo="https://github.com/PEOPLE-ECCO/algorithms/",
-        git_location="src/public_algorithms/common/ndvi",
         parameters={
             "bbox": {
                 "type": "array"
@@ -102,9 +99,6 @@ def add_example_processes(sess: Session, uuids: Dict[str, str]):
         name="open_water_surface",
         description="Calculates the percentage of open water in ",
         scenario_id=1,
-        git_commit="4cbe4fb06d8bb3e8b28af345589aec3d30826cf6",
-        git_repo="https://github.com/PEOPLE-ECCO/algorithms/",
-        git_location="src/public_algorithms/water/openwatersurface",
         parameters={
             "bbox": {
                 "type": "array"
@@ -117,9 +111,6 @@ def add_example_processes(sess: Session, uuids: Dict[str, str]):
         name="private_pixelcount",
         description="Counts all pixels with value x",
         scenario_id=2,
-        git_commit="4cbe4fb06d8bb3e8b28af345589aec3d30826aaa",
-        git_repo="https://github.com/PEOPLE-ECCO/algorithms/",
-        git_location="src/private_algorithms/pixelcount",
         parameters={
             "bbox": {
                 "type": "array"

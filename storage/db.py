@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 
-import sqlalchemy
 from quart import request, current_app
-from sqlalchemy import create_engine, event, Connection, Engine
+from sqlalchemy import create_engine, event, Connection, Engine, TextClause
 from sqlalchemy.orm import Session
 
 from .definitions import *
@@ -47,7 +46,7 @@ def connect_db(config: DBConfig) -> Engine:
             connection.execute(sqlalchemy.sql.text(f"SET local jwt.claims.roles = \'{root_uuid}\';"))
         else:
             ids = ",".join(request.scope['uuid'])
-            current_app.logger.error(f"registering with roles: {ids}")
+            # current_app.logger.error(f"registering with roles: {ids}")
             connection.execute(sqlalchemy.sql.text(f"SET local jwt.claims.roles = \'{ids}\';"))
 
     if current_app:
@@ -71,6 +70,7 @@ def recreate_tables(engine: Engine):
     _setup_rls_timeseries(conn)
 
     _setup_permissions(conn)
+
 
 def _setup_permissions(conn: Connection):
     """
@@ -199,7 +199,7 @@ def _setup_rls_timeseries(conn: Connection):
     conn.commit()
 
 
-def _default_aclread_rls(name: str) -> [str]:
+def _default_aclread_rls(name: str) -> list[TextClause]:
     return [
         sqlalchemy.sql.text(f"DROP POLICY IF EXISTS acl_read_{name} on {name};"),
         sqlalchemy.sql.text(f"""
@@ -214,7 +214,7 @@ def _default_aclread_rls(name: str) -> [str]:
     ]
 
 
-def _default_rls(name: str) -> [str]:
+def _default_rls(name: str) -> list[TextClause]:
     return [
         sqlalchemy.sql.text(f"ALTER TABLE public.{name} ENABLE ROW LEVEL SECURITY;"),
         sqlalchemy.sql.text(f"ALTER TABLE public.{name} FORCE ROW LEVEL SECURITY;"),

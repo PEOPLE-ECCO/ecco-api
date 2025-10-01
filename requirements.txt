@@ -16,6 +16,6 @@ PyJWT
 hypercorn[uvloop]
 
 openeo
-celery[redis]
-redis
 dotenv
+
+prefect[docker]

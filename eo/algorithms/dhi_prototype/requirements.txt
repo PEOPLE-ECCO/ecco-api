@@ -1,0 +1,13 @@
+openeo
+xarray
+tqdm
+numpy
+pandas
+rasterio
+gdal
+rioxarray
+matplotlib
+
+scikit-image
+scikit-learn
+dask

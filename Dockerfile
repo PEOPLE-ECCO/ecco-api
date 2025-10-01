@@ -20,6 +20,3 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 FROM base AS api
 CMD ["hypercorn", "-c", "hypercorn.conf.py", "app:APP"]
-
-FROM base AS celery
-CMD ["celery", "-A", "app", "worker", "--concurrency", "1", "-E"]
