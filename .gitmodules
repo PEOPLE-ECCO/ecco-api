@@ -1,0 +1,6 @@
+[submodule "eo/algorithms/dhi"]
+	path = eo/algorithms/dhi
+	url = git@github.com:PEOPLE-ECCO/dhi_people_ecco.git
+[submodule "eo/algorithms/hatfield"]
+	path = eo/algorithms/hatfield
+	url = git@github.com:PEOPLE-ECCO/hatfield-ecco.git
