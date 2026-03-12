@@ -2,12 +2,13 @@ aiohttp[speedups]
 
 minio
 
-rasterio[s3]
-rio-stac
-fs_s3fs
+#rasterio[s3]
+#rio-stac
+#fs_s3fs
 
 sqlalchemy[psycopg]
 psycopg[binary]
+GeoAlchemy2
 
 quart
 quart-cors

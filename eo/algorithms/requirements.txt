@@ -1,2 +1,5 @@
 prefect[docker]
 minio
+openeo
+pystac
+setuptools

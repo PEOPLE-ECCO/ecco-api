@@ -36,7 +36,8 @@ class DBSession(Session):
 def connect_db(config: DBConfig) -> Engine:
     engine = create_engine(
         f"postgresql+psycopg://{config.user}:{config.password}@{config.host}:{config.port}/{config.dbname}",
-        echo=config.debug
+        echo=config.debug,
+        plugins=["geoalchemy2"]
     )
 
     @event.listens_for(Session, 'after_begin')
@@ -83,6 +84,7 @@ def _setup_permissions(conn: Connection):
         sqlalchemy.sql.text(f"GRANT SELECT ON users to api;"),
         sqlalchemy.sql.text(f"GRANT SELECT, INSERT ON timeseries to api;"),
         sqlalchemy.sql.text(f"GRANT SELECT, INSERT, UPDATE ON jobs to api;"),
+        sqlalchemy.sql.text(f"GRANT SELECT, INSERT, UPDATE ON users to api;"),
         sqlalchemy.sql.text(f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA public to api;")
     ]
 

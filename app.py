@@ -1,5 +1,7 @@
 import json
+import os
 from datetime import timedelta
+from uuid import UUID
 
 from dotenv import load_dotenv
 from hypercorn.middleware import ProxyFixMiddleware
@@ -42,15 +44,10 @@ APP.config["S3"] = Minio(
     os.environ.get("ECCO_S3_URL", "s3.people-ecco.dev.52north.org"),
     secure=True,
     access_key=os.environ.get("ECCO_S3_ACCESS_KEY", "aa"),
-    secret_key=os.environ.get("ECCO_S3_SECRET_KEY", "aa")
+    secret_key=os.environ.get("ECCO_S3_SECRET_KEY", "aa"),
+    region="garage"
 )
 # APP.config["S3"].trace_on(sys.stdout)
-
-openeo: OpenEO = OpenEO(OpenEOConfig(
-    backend=os.environ.get("ECCO_OPENEO_BACKEND", "https://openeofed.dataspace.copernicus.eu/"),
-    oidc_provider=os.environ.get("ECCO_OPENEO_OIDC_PROVIDER", ""),
-))
-APP.config["openeo"] = openeo
 
 db_config = DBConfig(
     host=os.environ.get("ECCO_DB_HOST", "localhost"),
@@ -66,6 +63,11 @@ APP.config["db"] = db_config
 async def setup():
     connect_db(db_config)
     # APP.add_background_task(init_deployments)
+
+
+@APP.get('/static/<path:path>')
+async def static_file(filename):
+    return await APP.send_from_directory('static', path)
 
 
 @APP.get('/')
@@ -116,7 +118,7 @@ async def post_timeseries(scenario_id: int):
             return f"cannot find scenario {scenario_id}", 404
 
         # check process
-        if not sess.query(exists(Process).where(and_(Process.id == input["process"], Process.scenario_id == scenario_id))).scalar():
+        if not sess.query(exists(Process).where(and_(Process.id == input["process"]["id"], Process.scenario_id == scenario_id))).scalar():
             return "cannot find process in this scenario", 400
 
         # create timeseries
@@ -124,16 +126,12 @@ async def post_timeseries(scenario_id: int):
             scenario_id=scenario_id,
             name=input["name"],
             description=input["description"],
-            process=input["process"],
-            #             foi=input["foi"],
-            bucket=str(uuid.uuid4()),
+            process=input["process"]["id"],
+            bbox=f"{bbox[0]} {bbox[1]}, {bbox[2]} {bbox[3]}",
+            geometry=func.ST_GeomFromGeoJSON(json.dumps(input["extent"]["geometry"]["geometry"])),
             acl_read=scenario.acl_read
         )
         sess.add(ts)
-
-        s3: Minio = current_app.config["S3"]
-        s3.make_bucket(ts.bucket)
-
         sess.commit()
         return f"{ts.id}", 201
 
@@ -146,7 +144,7 @@ async def get_jobs(timeseries_id: int):
 
 
 def job_to_flow(job: Job):
-    return job.as_dict() | load_flow_run(uuid.UUID(job.openeo_id)).model_dump(mode='json')
+    return load_flow_run(job.flow_run_id).model_dump(mode='json') | job.as_dict()
 
 
 @APP.get('/jobs/<int:job_id>/')
@@ -163,34 +161,32 @@ async def get_job(job_id: int):
 async def get_job_logs(job_id: int):
     with DBSession() as sess:
         job = sess.get(Job, job_id)
-        async with get_client() as client:
-            c: PrefectClient = client
-            log_filter = LogFilter(flow_run_id={"any_": [job.openeo_id]})
-            logs = await c.read_logs(log_filter)
-            if logs:
-                return [l.model_dump(mode='json') for l in logs], 200, {'Content-Type': 'application/json'}
-            else:
-                return "", 404
-
-
-@APP.get('/scenarios/<int:scenario_id>/timeseries/<int:timeseries_id>/jobs/<int:job_id>/catalog')
-async def get_job_catalog(scenario_id: int, timeseries_id: int, job_id: int):
-    with DBSession() as sess:
-        job = sess.get(Job, job_id)
-        ts = sess.get(Timeseries, timeseries_id)
-
-        if not job or not ts:
+    async with get_client() as client:
+        c: PrefectClient = client
+        log_filter = LogFilter(flow_run_id={"any_": [str(job.flow_run_id)]})
+        logs = await c.read_logs(log_filter)
+        if logs:
+            return [l.model_dump(mode='json') for l in logs], 200, {'Content-Type': 'application/json'}
+        else:
             return "", 404
 
-        # Fetch catalog
+
+@APP.get('/jobs/<int:job_id>/results')
+async def get_job_results(job_id: int):
+    with DBSession() as sess:
+        job = sess.get(Job, job_id)
+        if not job:
+            return f"no job with id {job_id} found", 404
+
+        # Fetch results
         s3 = current_app.config["S3"]
         response = None
         try:
             response = s3.get_object(
-                ts.bucket,
-                str(job.id) + "/job-results.json",
+                job.flow_run_name,
+                "stac.collection",
             )
-            catalog = json.loads(response.data)
+            collection = json.loads(response.data)
         except S3Error as e:
             LOGGER.error(e)
             return f"", 404
@@ -198,17 +194,15 @@ async def get_job_catalog(scenario_id: int, timeseries_id: int, job_id: int):
             if response:
                 response.release_conn()
 
-        # Replace all links inside the catalog with presigned links
-        for asset in catalog["assets"].values():
-            asset["href"] = s3.presigned_get_object(
-                ts.bucket,
-                f"{job_id}/{asset['href'].split('/')[-1].split('?')[0]}",
-                expires=timedelta(minutes=120)
-            )
-        if "links" in catalog:
-            catalog["links"] = [o for o in catalog["links"] if o["rel"] not in ["item", "canonical", "self"]]
-
-        return json.dumps(catalog), 200, {'Content-Type': 'application/json'}
+        # Replace all links inside the collection with presigned links
+        for feature in collection['features']:
+            for image in feature['assets'].values():
+                image["href"] = s3.presigned_get_object(
+                    job.flow_run_name,
+                    image['href'],
+                    expires=timedelta(minutes=120)
+                )
+        return json.dumps(collection), 200, {'Content-Type': 'application/json'}
 
 
 @APP.post('/timeseries/<int:timeseries_id>/jobs/')
@@ -228,21 +222,27 @@ async def post_job(timeseries_id: int):
         user: User = sess.scalar(user_query)
         if not user: return "", 404
 
-        name = '2519303a-9745-45ef-a32c-612e54223e21'
+        # get spatial_extent from timeseries
+
         # TODO: input validation
+        params = {
+            "parameters": input | {
+                "spatial_extent": json.loads(ts.geom_geojson)
+            }
+        }
         flow_run = await run_deployment(
-            name=uuid.UUID(name),
-            parameters=input,
+            name=process.deployment_id,
+            parameters=params,
             timeout=0,
             _sync=False
         )
 
         job = Job(
+            flow_run_name=flow_run.name,
+            flow_run_id=flow_run.id,
             timeseries_id=timeseries_id,
-            status=JobStatus.INIT,
             scheduleTime=datetime.datetime.now(),
             user_id=user.id,
-            openeo_id=flow_run.id,
             acl_read=ts.acl_read
         )
         sess.add(job)
@@ -270,4 +270,5 @@ async def get_or_create_user():
             return user.as_dict()
 
 
-APP.run(use_reloader=False)
+if __name__ == "__main__":
+    APP.run(host="0.0.0.0", debug=True)
