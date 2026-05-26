@@ -1,5 +1,8 @@
 import json
 import os
+import io
+import zipfile
+import shutil
 from datetime import timedelta
 from uuid import UUID
 
@@ -11,7 +14,7 @@ from prefect.client.orchestration import PrefectClient
 from prefect.client.schemas.filters import LogFilter
 from prefect.deployments import run_deployment
 from prefect.flow_engine import load_flow_run
-from quart import Quart, request, current_app
+from quart import Quart, request, current_app, send_file
 from quart_cors import cors
 from sqlalchemy import select, exists, and_
 
@@ -121,6 +124,7 @@ async def post_timeseries(scenario_id: int):
         if not sess.query(exists(Process).where(and_(Process.id == input["process"]["id"], Process.scenario_id == scenario_id))).scalar():
             return "cannot find process in this scenario", 400
 
+        bbox = input["extent"]["bbox"]
         # create timeseries
         ts = Timeseries(
             scenario_id=scenario_id,
@@ -250,6 +254,81 @@ async def post_job(timeseries_id: int):
 
         return f"{job.id}", 201
 
+
+@APP.get('/timeseries/<int:timeseries_id>/download')
+async def download_all_results(timeseries_id: int):
+    with DBSession() as sess:
+        # fetch all jobs for the timeseries
+        jobs = sess.scalars(select(Job).where(Job.timeseries_id == timeseries_id)).all()
+
+        if not jobs:
+            return "No jobs found for this timeseries", 404
+
+        s3 = current_app.config["S3"]
+        zip_buffer = io.BytesIO()
+
+        # open zip file manager for the final download blob
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for job in jobs:
+                folder_name = job.flow_run_name
+                collection_response = None
+                try:
+                    collection_response = s3.get_object(
+                        job.flow_run_name,
+                        "stac.collection",
+                    )
+                    collection = json.loads(collection_response.data)
+                except S3Error as e:
+                    current_app.logger.error(f"Could not get stac.collection for job {job.id}: {e}")
+                    continue
+                finally:
+                    if collection_response:
+                        collection_response.release_conn()
+
+                # use the timestamp, if available, for the sub folder name
+                for feature in collection.get('features', []):
+                    if "properties" in feature and "datetime" in feature["properties"]:
+                        date_time = feature["properties"]["datetime"].split("T")[0]
+                        if len(date_time) > 0:
+                            folder_name = date_time
+                            break
+
+                # iterate through all features and collect/add assets
+                files_found = False
+                for feature in collection.get('features', []):
+                    for asset in feature.get('assets', {}).values():
+                        asset_href = asset.get('href')
+                        if not asset_href:
+                            continue
+
+                        file_response = None
+                        try:
+                            file_response = s3.get_object(job.flow_run_name, asset_href)
+                            zip_path = os.path.join(folder_name, os.path.basename(asset_href))
+                            
+                            # copy the asset to the zip file
+                            with zf.open(zip_path, 'w') as zf_fp:
+                                shutil.copyfileobj(file_response, zf_fp)
+                                files_found = True
+                        except S3Error as e:
+                            current_app.logger.error(f"Could not download asset {asset_href} for job {job.id}: {e}")
+                        finally:
+                            if file_response:
+                                file_response.release_conn()
+
+                # if we found files for this job, add the collection.json as well
+                if files_found:
+                    zf.writestr(os.path.join(folder_name, 'collection.json'), json.dumps(collection))
+
+        # rewind the buffer so it can be streamed to the HTTP client
+        zip_buffer.seek(0)
+
+        return await send_file(
+            zip_buffer,
+            mimetype='application/zip',
+            as_attachment=True,
+            attachment_filename=f'timeseries_{timeseries_id}_results.zip'
+        )
 
 @APP.route('/user/')
 async def get_or_create_user():
