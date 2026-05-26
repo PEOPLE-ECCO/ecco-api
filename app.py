@@ -5,6 +5,7 @@ import zipfile
 import shutil
 from datetime import timedelta
 from uuid import UUID
+import asyncio
 
 from dotenv import load_dotenv
 from hypercorn.middleware import ProxyFixMiddleware
@@ -14,7 +15,7 @@ from prefect.client.orchestration import PrefectClient
 from prefect.client.schemas.filters import LogFilter
 from prefect.deployments import run_deployment
 from prefect.flow_engine import load_flow_run
-from quart import Quart, request, current_app, send_file
+from quart import Quart, request, current_app, stream_with_context
 from quart_cors import cors
 from sqlalchemy import select, exists, and_
 
@@ -255,80 +256,143 @@ async def post_job(timeseries_id: int):
         return f"{job.id}", 201
 
 
-@APP.get('/timeseries/<int:timeseries_id>/download')
+# simple custom stream wrapper that yields bytes as the zipfile engine writes them
+class StreamBuffer:
+    def __init__(self):
+        self.buffer = bytearray()
+
+    def write(self, data):
+        self.buffer.extend(data)
+        return len(data)
+
+    def flush(self):
+        pass
+
+    def read_chunks(self):
+        chunks = bytes(self.buffer)
+        self.buffer.clear()
+        return chunks
+
+
+@APP.get("/timeseries/<int:timeseries_id>/download")
 async def download_all_results(timeseries_id: int):
-    with DBSession() as sess:
-        # fetch all jobs for the timeseries
-        jobs = sess.scalars(select(Job).where(Job.timeseries_id == timeseries_id)).all()
 
-        if not jobs:
-            return "No jobs found for this timeseries", 404
+    # stream_with_context so Quart can stream chunk-by-chunk
+    @stream_with_context
+    async def zip_stream_generator():
+        stream_target = StreamBuffer()
 
-        s3 = current_app.config["S3"]
-        zip_buffer = io.BytesIO()
+        # Open the zip archive targeted at our memory buffer stream
+        with zipfile.ZipFile(stream_target, "w", zipfile.ZIP_DEFLATED) as zf:
 
-        # open zip file manager for the final download blob
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for job in jobs:
-                folder_name = job.flow_run_name
-                collection_response = None
-                try:
-                    collection_response = s3.get_object(
-                        job.flow_run_name,
-                        "stac.collection",
-                    )
-                    collection = json.loads(collection_response.data)
-                except S3Error as e:
-                    current_app.logger.error(f"Could not get stac.collection for job {job.id}: {e}")
-                    continue
-                finally:
-                    if collection_response:
-                        collection_response.release_conn()
+            with DBSession() as sess:
+                # Write a small readme, so the first chunks can be tranferred
+                the_ts = sess.scalars(
+                    select(Timeseries).where(Timeseries.id == timeseries_id)
+                ).all()
+                if len(the_ts) == 0:
+                    print(f"timeseries with id {timeseries_id} not found")
+                    pass
 
-                # use the timestamp, if available, for the sub folder name
-                for feature in collection.get('features', []):
-                    if "properties" in feature and "datetime" in feature["properties"]:
-                        date_time = feature["properties"]["datetime"].split("T")[0]
-                        if len(date_time) > 0:
-                            folder_name = date_time
-                            break
+                ts_name = the_ts[0].name
+                zf.writestr("README.txt", f"All results for Timeseries {ts_name}\n")
+                yield stream_target.read_chunks()
+                await asyncio.sleep(0.1)
+                # fetch all jobs for the timeseries
+                jobs = sess.scalars(
+                    select(Job).where(Job.timeseries_id == timeseries_id)
+                ).all()
 
-                # iterate through all features and collect/add assets
-                files_found = False
-                for feature in collection.get('features', []):
-                    for asset in feature.get('assets', {}).values():
-                        asset_href = asset.get('href')
-                        if not asset_href:
-                            continue
+                if not jobs:
+                    print("No jobs found for this timeseries")
 
-                        file_response = None
-                        try:
-                            file_response = s3.get_object(job.flow_run_name, asset_href)
-                            zip_path = os.path.join(folder_name, os.path.basename(asset_href))
-                            
-                            # copy the asset to the zip file
-                            with zf.open(zip_path, 'w') as zf_fp:
-                                shutil.copyfileobj(file_response, zf_fp)
-                                files_found = True
-                        except S3Error as e:
-                            current_app.logger.error(f"Could not download asset {asset_href} for job {job.id}: {e}")
-                        finally:
-                            if file_response:
-                                file_response.release_conn()
+                s3 = current_app.config["S3"]
 
-                # if we found files for this job, add the collection.json as well
-                if files_found:
-                    zf.writestr(os.path.join(folder_name, 'collection.json'), json.dumps(collection))
+                for job in jobs:
+                    folder_name = job.flow_run_name
+                    collection_response = None
+                    try:
+                        collection_response = s3.get_object(
+                            job.flow_run_name,
+                            "stac.collection",
+                        )
+                        collection = json.loads(collection_response.data)
+                    except S3Error as e:
+                        current_app.logger.error(
+                            f"Could not get stac.collection for job {job.id}: {e}"
+                        )
+                        continue
+                    finally:
+                        if collection_response:
+                            collection_response.release_conn()
 
-        # rewind the buffer so it can be streamed to the HTTP client
-        zip_buffer.seek(0)
+                    # use the timestamp, if available, for the sub folder name
+                    for feature in collection.get("features", []):
+                        if (
+                            "properties" in feature
+                            and "datetime" in feature["properties"]
+                        ):
+                            date_time = feature["properties"]["datetime"].split("T")[0]
+                            if len(date_time) > 0:
+                                folder_name = date_time
+                                break
 
-        return await send_file(
-            zip_buffer,
-            mimetype='application/zip',
-            as_attachment=True,
-            attachment_filename=f'timeseries_{timeseries_id}_results.zip'
-        )
+                    # iterate through all features and collect/add assets
+                    files_found = False
+                    for feature in collection.get("features", []):
+                        for asset in feature.get("assets", {}).values():
+                            asset_href = asset.get("href")
+                            if not asset_href:
+                                continue
+
+                            file_response = None
+                            try:
+                                file_response = s3.get_object(
+                                    job.flow_run_name, asset_href
+                                )
+                                zip_path = os.path.join(
+                                    folder_name, os.path.basename(asset_href)
+                                )
+
+                                # copy the asset to the zip file
+                                with zf.open(zip_path, "w") as zf_fp:
+                                    shutil.copyfileobj(file_response, zf_fp)
+                                    yield stream_target.read_chunks()  # Instantly send this chunk over the network
+                                    await asyncio.sleep(
+                                        0.1
+                                    )  # Yield control to the async loop
+                                    files_found = True
+
+                            except S3Error as e:
+                                current_app.logger.error(
+                                    f"Could not download asset {asset_href} for job {job.id}: {e}"
+                                )
+                            finally:
+                                if file_response:
+                                    file_response.release_conn()
+
+                    # if we found files for this job, add the collection.json as well
+                    if files_found:
+                        zf.writestr(
+                            os.path.join(folder_name, "collection.json"),
+                            json.dumps(collection),
+                        )
+                        yield stream_target.read_chunks()  # Instantly send this chunk over the network
+                        await asyncio.sleep(0.1)
+
+        # Yield any remaining metadata bytes required to finalize the zip structure
+        yield stream_target.read_chunks()
+
+    # set download headers to the generator stream
+    headers = {
+        "Content-Type": "application/zip",
+        "Content-Disposition": f"attachment; filename=timeseries_{timeseries_id}_results.zip",
+        # Explicitly avoid setting 'Content-Length' so HTTP Chunked Transfer Encoding activates
+    }
+
+    # browser receives the headers instantly, opening the save dialog
+    return zip_stream_generator(), 200, headers
+
 
 @APP.route('/user/')
 async def get_or_create_user():
