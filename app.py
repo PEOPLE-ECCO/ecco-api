@@ -15,7 +15,7 @@ from prefect.client.orchestration import PrefectClient
 from prefect.client.schemas.filters import LogFilter
 from prefect.deployments import run_deployment
 from prefect.flow_engine import load_flow_run
-from quart import Quart, request, current_app, stream_with_context
+from quart import Quart, request, current_app, stream_with_context, make_response
 from quart_cors import cors
 from sqlalchemy import select, exists, and_
 
@@ -391,7 +391,9 @@ async def download_all_results(timeseries_id: int):
     }
 
     # browser receives the headers instantly, opening the save dialog
-    return zip_stream_generator(), 200, headers
+    response = await make_response(zip_stream_generator(), 200, headers)
+    response.timeout = None
+    return response
 
 
 @APP.route('/user/')
