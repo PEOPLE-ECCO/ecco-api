@@ -152,6 +152,28 @@ def job_to_flow(job: Job):
     return load_flow_run(job.flow_run_id).model_dump(mode='json') | job.as_dict()
 
 
+def get_job_request_parameters(input: dict) -> dict:
+    if not isinstance(input, dict):
+        return {}
+
+    request_parameters = input.get("parameters")
+    if set(input.keys()) == {"parameters"} and isinstance(request_parameters, dict):
+        return request_parameters
+
+    return input
+
+
+async def get_deployment_default_parameters(deployment_id: UUID) -> dict:
+    async with get_client() as client:
+        deployment = await client.read_deployment(deployment_id)
+
+    defaults = getattr(deployment, "parameters", None)
+    if not isinstance(defaults, dict):
+        return {}
+
+    return defaults
+
+
 @APP.get('/jobs/<int:job_id>/')
 async def get_job(job_id: int):
     with DBSession() as sess:
@@ -229,12 +251,22 @@ async def post_job(timeseries_id: int):
 
         # get spatial_extent from timeseries
 
+        request_parameters = get_job_request_parameters(input)
+        deployment_default_parameters = await get_deployment_default_parameters(
+            process.deployment_id
+        )
+
+        print(f"Default deployment parameters: {json.dumps(deployment_default_parameters)}")
+
         # TODO: input validation
         params = {
-            "parameters": input | {
+            "parameters": deployment_default_parameters | request_parameters | {
                 "spatial_extent": json.loads(ts.geom_geojson)
             }
         }
+
+        print(f"Using parameters for run: {json.dumps(params)}")
+
         flow_run = await run_deployment(
             name=process.deployment_id,
             parameters=params,
