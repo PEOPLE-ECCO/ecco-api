@@ -172,9 +172,8 @@ async def get_deployment_default_parameters(deployment_id: UUID) -> dict:
         return {}
 
     # there is likely another "parameters" property, wrapping the actual parameters
-    params = getattr(defaults, "parameters", None)
-    if isinstance(params, dict):
-        return params
+    if "parameters" in defaults:
+        return defaults["parameters"]
 
     return defaults
 
@@ -264,12 +263,8 @@ async def post_job(timeseries_id: int):
         print(f"Default deployment parameters: {json.dumps(deployment_default_parameters)}")
 
         # TODO: input validation
-        params = deployment_default_parameters | request_parameters | {
-                "spatial_extent": json.loads(ts.geom_geojson)
-            }
-        
         params = {
-            "parameters": input | {
+            "parameters": deployment_default_parameters | request_parameters | {
                 "spatial_extent": json.loads(ts.geom_geojson)
             }
         }
