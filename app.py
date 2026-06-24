@@ -127,6 +127,7 @@ async def post_timeseries(scenario_id: int):
 
         bbox = input["extent"]["bbox"]
         # create timeseries
+        raw_parameters = input.get("parameters")
         ts = Timeseries(
             scenario_id=scenario_id,
             name=input["name"],
@@ -134,7 +135,8 @@ async def post_timeseries(scenario_id: int):
             process=input["process"]["id"],
             bbox=f"{bbox[0]} {bbox[1]}, {bbox[2]} {bbox[3]}",
             geometry=func.ST_GeomFromGeoJSON(json.dumps(input["extent"]["geometry"]["geometry"])),
-            acl_read=scenario.acl_read
+            acl_read=scenario.acl_read,
+            parameters=json.dumps(raw_parameters) if raw_parameters is not None else None,
         )
         sess.add(ts)
         sess.commit()
@@ -261,10 +263,13 @@ async def post_job(timeseries_id: int):
         )
 
         print(f"Default deployment parameters: {json.dumps(deployment_default_parameters)}")
+        print(f"Default timeseries parameters: {ts.parameters}")
 
         # TODO: input validation
+        timeseries_parameters = json.loads(ts.parameters) if ts.parameters else {}
+        
         params = {
-            "parameters": deployment_default_parameters | request_parameters | {
+            "parameters": deployment_default_parameters | timeseries_parameters | request_parameters | {
                 "spatial_extent": json.loads(ts.geom_geojson)
             }
         }

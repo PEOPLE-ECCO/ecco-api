@@ -5,7 +5,7 @@ from typing import Optional
 
 import sqlalchemy
 from geoalchemy2 import Geography
-from sqlalchemy import Column, String, func, Index, Integer, Sequence, ForeignKey, Identity
+from sqlalchemy import Column, String, Text, func, Index, Integer, Sequence, ForeignKey, Identity
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, DeclarativeBase, mapped_column, column_property
@@ -125,6 +125,7 @@ class Timeseries(Base):
 
     process = Column(Integer, ForeignKey("processes.id"))
     process_parameters: Mapped[Optional[dict]] = Column(JSONB)
+    parameters: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     geom_geojson = column_property(
         func.ST_AsGeoJSON(geometry)
@@ -145,6 +146,7 @@ class Timeseries(Base):
             "bbox": self.bbox,
             "process": self.process,
             "process_parameters": self.process_parameters,
+            "parameters": self.parameters,
         }
 
 
