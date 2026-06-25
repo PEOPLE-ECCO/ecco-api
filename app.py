@@ -115,6 +115,7 @@ async def get_timeseries(scenario_id: int):
 @APP.post('/scenarios/<int:scenario_id>/timeseries/')
 async def post_timeseries(scenario_id: int):
     input = await request.get_json()
+    
 
     with DBSession() as sess:
         scenario = sess.get(Scenario, scenario_id)
@@ -127,7 +128,11 @@ async def post_timeseries(scenario_id: int):
 
         bbox = input["extent"]["bbox"]
         # create timeseries
-        raw_parameters = input.get("parameters")
+        raw_parameters = input["parameters"]
+        print(f"new timeseries params: {json.dumps(raw_parameters)}")
+
+        print(f"Hasattr: {hasattr(Timeseries, 'parameters')}")
+        print(f"Class originates from: {Timeseries.__module__}")
         ts = Timeseries(
             scenario_id=scenario_id,
             name=input["name"],
@@ -136,8 +141,9 @@ async def post_timeseries(scenario_id: int):
             bbox=f"{bbox[0]} {bbox[1]}, {bbox[2]} {bbox[3]}",
             geometry=func.ST_GeomFromGeoJSON(json.dumps(input["extent"]["geometry"]["geometry"])),
             acl_read=scenario.acl_read,
-            parameters=json.dumps(raw_parameters) if raw_parameters is not None else None,
+            process_parameters=raw_parameters
         )
+
         sess.add(ts)
         sess.commit()
         return f"{ts.id}", 201
@@ -263,10 +269,14 @@ async def post_job(timeseries_id: int):
         )
 
         print(f"Default deployment parameters: {json.dumps(deployment_default_parameters)}")
-        print(f"Default timeseries parameters: {ts.parameters}")
+        print(f"Default timeseries parameters: {ts.process_parameters}")
 
         # TODO: input validation
-        timeseries_parameters = json.loads(ts.parameters) if ts.parameters else {}
+        timeseries_parameters = {}
+        if isinstance(ts.process_parameters, dict):
+            timeseries_parameters = ts.process_parameters
+        elif isinstance(my_obj, str):
+            timeseries_parameters = json.loads(ts.process_parameters)
         
         params = {
             "parameters": deployment_default_parameters | timeseries_parameters | request_parameters | {
