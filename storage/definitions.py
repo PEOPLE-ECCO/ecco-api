@@ -125,8 +125,6 @@ class Timeseries(Base):
 
     process = Column(Integer, ForeignKey("processes.id"))
     process_parameters: Mapped[Optional[dict]] = Column(JSONB)
-    parameters: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
     geom_geojson = column_property(
         func.ST_AsGeoJSON(geometry)
     )
@@ -146,7 +144,6 @@ class Timeseries(Base):
             "bbox": self.bbox,
             "process": self.process,
             "process_parameters": self.process_parameters,
-            "parameters": self.parameters,
         }
 
 
@@ -170,5 +167,5 @@ class Process(Base):
         return {
             "id": self.id,
             "name": self.name,
-            "description": self.description
+            "description": self.description,
         }

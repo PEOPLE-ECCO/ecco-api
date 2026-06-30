@@ -136,6 +136,51 @@ def persist_logs() -> None:
     client.update_flow_run(flow_run.id, tags=list(tags))
 
 
+S3_PREFIX = "s3::"
+
+
+@task(log_prints=True, cache_policy=NO_CACHE)
+def fetch_data(parameters) -> None:
+    """
+    Fetches Data from s3
+    :return:
+    """
+    # Infer buckets to fetch from any "s3::<bucket>/..." parameter references.
+    buckets = {
+        value[len(S3_PREFIX):].split("/", 1)[0]
+        for value in parameters.values()
+        if isinstance(value, str) and value.startswith(S3_PREFIX)
+    }
+    if not buckets:
+        return
+
+    s3_url = Secret.load("ecco-s3-url").get()
+    s3_akey = Secret.load("ecco-s3-access-key").get()
+    s3_skey = Secret.load("ecco-s3-secret-key").get()
+    client = Minio(
+        s3_url,
+        secure=True,
+        access_key=s3_akey,
+        secret_key=s3_skey,
+        region="garage"
+    )
+
+    for bucket in buckets:
+        dest_dir = os.path.join("/tmp", bucket)
+        print(f"Fetching bucket '{bucket}' into {dest_dir}")
+        for obj in client.list_objects(bucket, recursive=True):
+            target_path = os.path.join(dest_dir, obj.object_name)
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            client.fget_object(bucket, obj.object_name, target_path)
+            print(f"Downloaded {bucket}/{obj.object_name} -> {target_path}")
+
+    # Rewrite "s3::<bucket>/..." references to the local download path under /tmp.
+    for key, value in parameters.items():
+        if isinstance(value, str) and value.startswith(S3_PREFIX):
+            parameters[key] = os.path.join("/tmp", value[len(S3_PREFIX):])
+            print(f"Rewrote parameter '{key}': {value} -> {parameters[key]}")
+
+
 @task(log_prints=True, cache_policy=NO_CACHE)
 def run(algo: RunnableAlgorithm, conn: Connection, catalog: Catalog, parameters: Dict) -> None:
     algo.run(conn, catalog, parameters)
@@ -147,6 +192,7 @@ def run_algorithm(parameters: Dict) -> None:
     conn = get_openeo_connection()
     try:
         catalog = pystac.Catalog(id=flow_run.name, description=f"Catalog for Flow: {flow_run.name}")
+        fetch_data(parameters)
         run(algo, conn, catalog, parameters)
         persist_outputs(catalog)
     except Exception as e:

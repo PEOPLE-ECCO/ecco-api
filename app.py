@@ -1,11 +1,9 @@
+import asyncio
 import json
 import os
-import io
-import zipfile
 import shutil
+import zipfile
 from datetime import timedelta
-from uuid import UUID
-import asyncio
 
 from dotenv import load_dotenv
 from hypercorn.middleware import ProxyFixMiddleware
@@ -24,6 +22,7 @@ from eo.api import *
 from stac.routes import stac_bp
 from storage.db import connect_db, DBSession, DBConfig
 from storage.definitions import *
+from storage.definitions import Process, Job
 
 load_dotenv()
 
@@ -103,14 +102,29 @@ async def get_scenarios_by_id(scenario_id: int):
 @APP.get('/scenarios/<int:scenario_id>/processes/')
 async def get_processes(scenario_id: int):
     with DBSession() as sess:
-        return [a.as_dict() for a in sess.scalars(select(Process).where(Process.scenario_id == scenario_id))]
+        processes = [a for a in sess.scalars(select(Process).where(Process.scenario_id == scenario_id))]
+        response = []
+        # Handling for two-stage processes
+        for process in processes:
+            p = process.as_dict()
+            if "preprocess" in (process.parameters or {}):
+                # Hacky solution to not have to modify the sql schema
+                prets = sess.scalars((select(Timeseries).where(Timeseries.process == process.parameters["preprocess"])))
+                p["parameters"] = {}
+                p["parameters"]["preprocess_options"] = [{"name": ts.name, "id": ts.id} for ts in prets]
+            response.append(p)
+    return response
 
 
 @APP.get('/scenarios/<int:scenario_id>/timeseries/')
-async def get_timeseries(scenario_id: int):
+async def get_timeseries_by_scenario(scenario_id: int):
     with DBSession() as sess:
         return [a.as_dict() for a in sess.scalars(select(Timeseries).where(Timeseries.scenario_id == scenario_id))]
 
+@APP.get('/timeseries/<int:timeseries_id>/')
+async def get_timeseries(timeseries_id: int):
+    with DBSession() as sess:
+        return sess.scalar(select(Timeseries).where(Timeseries.id == timeseries_id)).as_dict()
 
 @APP.post('/scenarios/<int:scenario_id>/timeseries/')
 async def post_timeseries(scenario_id: int):
@@ -136,7 +150,7 @@ async def post_timeseries(scenario_id: int):
             bbox=f"{bbox[0]} {bbox[1]}, {bbox[2]} {bbox[3]}",
             geometry=func.ST_GeomFromGeoJSON(json.dumps(input["extent"]["geometry"]["geometry"])),
             acl_read=scenario.acl_read,
-            parameters=json.dumps(raw_parameters) if raw_parameters is not None else None,
+            process_parameters=raw_parameters if raw_parameters is not None else {},
         )
         sess.add(ts)
         sess.commit()
@@ -165,19 +179,35 @@ def get_job_request_parameters(input: dict) -> dict:
     return input
 
 
-async def get_deployment_default_parameters(deployment_id: UUID) -> dict:
-    async with get_client() as client:
-        deployment = await client.read_deployment(deployment_id)
-
-    defaults = getattr(deployment, "parameters", None)
-    if not isinstance(defaults, dict):
+def get_timeseries_parameters(ts: Timeseries):
+    if ts.process_parameters is None:
         return {}
+    params = ts.process_parameters
+    # Process does not have access to database, so we add all required information here
+    if "reference_area_id" in params:
+        # Process does not have access to database, so we add all required information here
+        jobs = []
+        with DBSession() as sess:
+            jobs = [a for a in sess.scalars(select(Job).where(Job.timeseries_id == params.get("reference_area_id")))]
+        for job in jobs:
+            #  "reference_sites_file": "/home/jovyan/docs/PEOPLE-ECCO/ECCO_Data/Lebanon/seasonal_sen_savi_aoi_runs/reference_sites_by_name/Bentael.geojson",
+            #  "reference_bap_composite_dir": "/home/jovyan/docs/PEOPLE-ECCO/ECCO_Data/Lebanon/seasonal_sen_savi_aoi_runs/reference_baps/Bentael/bap",
+            #  "reference_bap_manifest_file": "/home/jovyan/docs/PEOPLE-ECCO/ECCO_Data/Lebanon/seasonal_sen_savi_aoi_runs/reference_baps/Bentael/bap/bap_manifest.json",
+            # TODO: support more than 1 Job
+            bucket_name = job.flow_run_name
+            params["reference_sites_file"] = f"s3::{bucket_name}/sites_file.geojson"
+            params["reference_bap_composite_dir"] = f"s3::{bucket_name}"
+    if "restoration_site_id" in params:
+        jobs = []
+        with DBSession() as sess:
+            jobs = [a for a in sess.scalars(select(Job).where(Job.timeseries_id == params.get("restoration_site_id")))]
+        for job in jobs:
+            # TODO: support more than 1 Job
+            bucket_name = job.flow_run_name
+            params["restoration_sites_file"] = f"s3::{bucket_name}/sites_file.geojson"
+            params["bap_composite_dir"] = f"s3::{bucket_name}"
 
-    # there is likely another "parameters" property, wrapping the actual parameters
-    if "parameters" in defaults:
-        return defaults["parameters"]
-
-    return defaults
+    return params
 
 
 @APP.get('/jobs/<int:job_id>/')
@@ -256,20 +286,17 @@ async def post_job(timeseries_id: int):
         if not user: return "", 404
 
         # get spatial_extent from timeseries
-
         request_parameters = get_job_request_parameters(input)
-        deployment_default_parameters = await get_deployment_default_parameters(
-            process.deployment_id
-        )
-
-        print(f"Default deployment parameters: {json.dumps(deployment_default_parameters)}")
-        print(f"Default timeseries parameters: {ts.parameters}")
 
         # TODO: input validation
-        timeseries_parameters = json.loads(ts.parameters) if ts.parameters else {}
-        
+        timeseries_parameters = get_timeseries_parameters(ts)
+
+        print(f"Default timeseries parameters: {json.dumps(timeseries_parameters)}")
+
+        # Allow overwriting in this order:
+        # timeseries spatial extent > user supplied params > timeseries params
         params = {
-            "parameters": deployment_default_parameters | timeseries_parameters | request_parameters | {
+            "parameters": timeseries_parameters | request_parameters | {
                 "spatial_extent": json.loads(ts.geom_geojson)
             }
         }
@@ -317,7 +344,6 @@ class StreamBuffer:
 
 @APP.get("/timeseries/<int:timeseries_id>/download")
 async def download_all_results(timeseries_id: int):
-
     # stream_with_context so Quart can stream chunk-by-chunk
     @stream_with_context
     async def zip_stream_generator():
@@ -370,8 +396,8 @@ async def download_all_results(timeseries_id: int):
                     # use the timestamp, if available, for the sub folder name
                     for feature in collection.get("features", []):
                         if (
-                            "properties" in feature
-                            and "datetime" in feature["properties"]
+                                "properties" in feature
+                                and "datetime" in feature["properties"]
                         ):
                             date_time = feature["properties"]["datetime"].split("T")[0]
                             if len(date_time) > 0:
