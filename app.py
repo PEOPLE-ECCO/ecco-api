@@ -108,10 +108,12 @@ async def get_processes(scenario_id: int):
         for process in processes:
             p = process.as_dict()
             if "preprocess" in (process.parameters or {}):
-                # Hacky solution to not have to modify the sql schema
-                prets = sess.scalars((select(Timeseries).where(Timeseries.process == process.parameters["preprocess"])))
                 p["parameters"] = {}
-                p["parameters"]["preprocess_options"] = [{"name": ts.name, "id": ts.id} for ts in prets]
+                p["parameters"]["preprocess"] = {}
+                for preprocess in process.parameters["preprocess"]:
+                    # Hacky solution to not have to modify the sql schema
+                    prets = sess.scalars((select(Timeseries).where(Timeseries.process == preprocess["id"])))
+                    p["parameters"]["preprocess"][preprocess["name"]] = [{"name": ts.name, "id": ts.id} for ts in prets]
             response.append(p)
     return response
 
