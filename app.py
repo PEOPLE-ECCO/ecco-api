@@ -206,8 +206,8 @@ def get_timeseries_parameters(ts: Timeseries):
         for job in jobs:
             # TODO: support more than 1 Job
             bucket_name = job.flow_run_name
-            params["restoration_sites_file"] = f"s3::{bucket_name}/sites_file.geojson"
             params["bap_composite_dir"] = f"s3::{bucket_name}"
+        params["spatial_extent_restoration_site"] = params["extent"]["geometry"]
 
     return params
 
